@@ -1,0 +1,11 @@
+﻿node_modules/
+.expo/
+dist/
+.env
+.env.local
+*.log
+.DS_Store
+Thumbs.db
+web-build/
+android/
+ios/
