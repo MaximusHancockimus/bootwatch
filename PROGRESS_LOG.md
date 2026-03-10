@@ -77,6 +77,122 @@ A running log of what was built at each step, what was installed, and why. Refer
 
 ---
 
+## Step 1.3 — Bottom Tab Navigation
+
+**What we did**: Set up the app's primary navigation structure — a bottom tab bar with four tabs: Map, Timer, Feed, and Profile.
+
+**What is React Navigation?** It's the standard navigation library for React Native. It manages which screen is visible, handles transitions, and passes data between screens. The bottom tab navigator specifically creates the tab bar you see at the bottom of apps like Instagram or Spotify.
+
+**What got created**:
+
+| File | What It Does |
+|---|---|
+| `src/navigation/TabNavigator.tsx` | Defines the four tabs, their icons (outline when inactive, filled when active), and visual styling. This is the central routing hub of the app. |
+
+**How it works**: `App.tsx` wraps the `TabNavigator` inside a `NavigationContainer` (required by React Navigation). Each tab points to a screen component. When you tap a tab, React Navigation renders that screen and manages the transition.
+
+---
+
+## Step 1.4 — Placeholder Screens
+
+**What we did**: Created four placeholder screen components — one for each tab. Each shows a centered icon, title, and subtitle describing the screen's future purpose.
+
+**What got created**:
+
+| File | Tab | Purpose |
+|---|---|---|
+| `src/screens/MapScreen.tsx` | Map | Complex directory & risk heat map |
+| `src/screens/TimerScreen.tsx` | Timer | Parking countdown with push alerts |
+| `src/screens/FeedScreen.tsx` | Feed | Real-time boot truck sightings |
+| `src/screens/ProfileScreen.tsx` | Profile | User account & saved complexes |
+
+These are starter versions that we replace with real functionality in later steps.
+
+---
+
+## Step 1.5 — Theme Constants
+
+**What we did**: Defined the app's visual design system — colors, spacing, font sizes, font weights, and border radii — in a single shared file.
+
+**Why a theme file?** Instead of hardcoding colors and sizes in every component, we define them once and import everywhere. This means if we want to change the primary blue or adjust spacing, we change one file and the entire app updates.
+
+**What got created**:
+
+| File | What It Does |
+|---|---|
+| `src/theme/index.ts` | Exports `colors`, `spacing`, `fontSize`, `fontWeight`, and `borderRadius` constants |
+
+**Color system**:
+- **Blue** (`primary`) — main actions, links, active tab
+- **Red** (`danger`) — boot alerts, high risk
+- **Yellow** (`warning`) — timer warnings, moderate risk
+- **Green** (`safe`) — safe zones, low risk
+- **Gray** (`neutral`) — secondary text, inactive elements
+
+---
+
+## Step 1.6 — Verify App Runs
+
+**What we did**: Tested the app on web (`npx expo start --web`). The native map (`react-native-maps`) doesn't work on Expo Go yet with SDK 55, so we're testing on web during development. Installed web dependencies (`react-dom`, `react-native-web`, `@expo/metro-runtime`) to enable browser testing.
+
+**Known issue**: Expo Go on phones doesn't support SDK 55 yet. For now we test via web browser. When ready for mobile testing, we'll either downgrade SDK or create a development build.
+
+---
+
+## Step 2.1 — Complex Data Model
+
+**What we did**: Defined the TypeScript types that describe an apartment complex in our system.
+
+**What got created**:
+
+| File | What It Does |
+|---|---|
+| `src/types/complex.ts` | Exports `Complex` interface, `RiskLevel` type (`high`, `moderate`, `low`, `unknown`), and `SignageQuality` type |
+
+**Complex fields**: `id`, `name`, `address`, `latitude`, `longitude`, `visitorTimeLimitMinutes`, `bootingCompany`, `signageQuality`, `riskLevel`, `notes`
+
+This is the data contract — every component that displays complex info references these types, so if we add a field later, TypeScript tells us everywhere that needs updating.
+
+---
+
+## Step 2.2 — Seed Data
+
+**What we did**: Created a file with 12 Rexburg apartment complexes as placeholder seed data. Each has coordinates, visitor time limits, booting company info, signage quality, risk level, and notes.
+
+**What got created**:
+
+| File | What It Does |
+|---|---|
+| `src/data/complexes.ts` | Exports the `complexes` array and `REXBURG_CENTER` map region. This is the data the map and timer screens pull from. |
+
+**Important**: This data is placeholder. The names are real Rexburg complexes but the details (coordinates, time limits, booting companies) need to be verified with actual on-the-ground research before launch.
+
+---
+
+## Step 2.3–2.6 — Map Screen, Markers, Search, and Detail Sheet
+
+**What we did**: Built the full Map tab — the first screen users see. On native devices it renders a real map with colored markers. On web it renders a scrollable card list (since `react-native-maps` doesn't support web).
+
+**What got created**:
+
+| File | What It Does |
+|---|---|
+| `src/screens/MapScreen.tsx` | Full map screen with search bar, complex list (web) or native map, and detail sheet integration |
+| `src/components/NativeMap.tsx` | Wrapper around `react-native-maps` that only loads on native platforms (avoids crashing web) |
+| `src/components/ComplexDetailSheet.tsx` | Bottom sheet modal showing complex details: name, risk badge, address, time limit, booting company, signage quality, notes, and a "Park Here" button |
+| `src/components/RiskBadge.tsx` | Small colored pill badge (red/yellow/green) that displays the risk level |
+| `src/utils/risk.ts` | Maps risk levels to their colors and labels, used by markers and badges throughout the app |
+
+**How it works**:
+1. Map screen loads → shows search bar + list of complexes (web) or map with colored markers (native)
+2. User taps a complex → `ComplexDetailSheet` slides up from the bottom
+3. Sheet shows all parking details for that complex
+4. User taps "Park Here" → navigates to the Timer tab with that complex pre-selected
+
+**Web vs. Native**: `react-native-maps` crashes on web even if you don't render it — just importing it breaks the bundle. We solved this by putting the map in a separate `NativeMap` component and only loading it via `require()` when `Platform.OS !== 'web'`.
+
+---
+
 ## .env File
 
 **We don't have one yet — and that's intentional.** The `.env` file will hold secret keys for Supabase (API URL and anon key). We create it in **Step 4** when we set up the Supabase project. It's listed in `.gitignore` so it will never be committed to GitHub.
@@ -92,16 +208,23 @@ The `EXPO_PUBLIC_` prefix is an Expo convention that makes these values accessib
 
 ---
 
-## Steps Not Yet Completed
+## Status Overview
 
 | Step | Status |
 |---|---|
-| 1.3 — Bottom tab navigation | Up next |
-| 1.4 — Placeholder screens | Up next |
-| 1.5 — Theme constants | Up next |
-| 1.6 — Verify app runs | Up next |
-| 2.x — Complex directory & map | Not started |
-| 3.x — Parking timer | Not started |
+| 1.1 — Initialize Expo project | Complete |
+| 1.2 — Install core dependencies | Complete |
+| 1.3 — Bottom tab navigation | Complete |
+| 1.4 — Placeholder screens | Complete |
+| 1.5 — Theme constants | Complete |
+| 1.6 — Verify app runs | Complete |
+| 2.1 — Complex data model | Complete |
+| 2.2 — Seed data | Complete |
+| 2.3 — Map with markers | Complete |
+| 2.4 — Complex detail sheet | Complete |
+| 2.5 — Search/filter bar | Complete |
+| 2.6 — Color-coded markers | Complete |
+| 3.x — Parking timer | Up next |
 | 4.x — Supabase backend & auth | Not started |
 | 5.x — Boot spotter feed | Not started |
 | 6.x — Spotter push notifications | Not started |
