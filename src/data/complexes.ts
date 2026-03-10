@@ -7,6 +7,12 @@ export const REXBURG_CENTER = {
   longitudeDelta: 0.035,
 };
 
+export const CUSTOM_TIMER_ID = '__custom__';
+
+export function getComplexById(id: string): Complex | undefined {
+  return complexes.find((c) => c.id === id);
+}
+
 export const complexes: Complex[] = [
   {
     id: 'the-cove',
