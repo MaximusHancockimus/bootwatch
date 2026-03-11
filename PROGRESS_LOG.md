@@ -208,6 +208,66 @@ The `EXPO_PUBLIC_` prefix is an Expo convention that makes these values accessib
 
 ---
 
+## Step 2.7 — Interactive Web Map with Leaflet
+
+**What we did**: Replaced the plain card list on web with a full interactive map using Leaflet + OpenStreetMap. The map is now the hero of the screen, with the complex list available via a collapsible bottom panel.
+
+**Why Leaflet?** `react-native-maps` only works on native (iOS/Android). For web, we needed a separate map library. Leaflet is free, open-source, uses OpenStreetMap tiles (no API key), and is the most widely used web mapping library.
+
+**What got created/changed**:
+
+| File | What It Does |
+|---|---|
+| `src/components/WebMap.tsx` | Interactive Leaflet map for web. Shows colored circle markers for each complex (red/yellow/green by risk). Detects and shows user's live location as a blue dot. Markers have tooltips on hover and open the detail sheet on click. |
+| `src/screens/MapScreen.tsx` | Rewritten. Map fills the screen. Search bar floats over the top with a drop shadow. Collapsible bottom panel slides up to show the complex list. Panel shows complex count and can be toggled by tapping the handle. |
+
+**New dependency**: `leaflet` + `@types/leaflet`
+
+**How it works**:
+1. Map loads centered on Rexburg with colored circle markers for each complex
+2. Browser requests location permission — if granted, a blue dot shows the user's position
+3. Search bar floats over the map — typing filters both the markers and the panel list
+4. Bottom panel shows "12 Complexes" collapsed — tap to expand and see the scrollable card list
+5. Tapping a marker on the map OR a card in the panel opens the same detail sheet as before
+6. "Park Here" from the detail sheet still navigates to the Timer tab
+
+**Design decisions**:
+- Map takes 100% of the screen — this is the visual centerpiece and future heat map foundation
+- Panel is collapsible so it doesn't compete with the map for space
+- Search bar has a white background + shadow so it's readable over any map tile
+- Circle markers with white borders and drop shadows are visible on any terrain
+
+---
+
+## Step 3.1–3.9 — Parking Timer
+
+**What we did**: Built the complete parking timer feature — the core day-one value of the app.
+
+**What got created**:
+
+| File | What It Does |
+|---|---|
+| `src/hooks/useNotifications.ts` | Notification abstraction. Handles permission requests, schedules local notifications at specific delays, cancels all scheduled notifications. Configures handler so alerts show in foreground. No-ops on web. |
+| `src/hooks/useParkingTimer.ts` | Core timer hook. Uses `Date.now()` math for accuracy (not decrements). Four phases: `running` → `warning` (< 10 min) → `critical` (< 5 min) → `expired`. Resumes accurately after app backgrounds via `AppState` listener. Schedules three push notifications on start. |
+| `src/screens/TimerScreen.tsx` | Full timer UI with two views: setup (complex selector + custom timer + start button) and active (large countdown + progress bar + cancel button). |
+
+**How the timer works**:
+1. Setup view: user picks a complex from a scrollable list — timer auto-fills with that complex's visitor time limit
+2. Or picks "Custom Timer" and enters minutes manually
+3. Taps "Start Timer" — requests notification permission if needed, schedules push alerts, starts countdown
+4. Active view: 72px countdown display shifts green → yellow → red as time runs low
+5. Phase labels: "You're good", "Heads up — under 10 minutes", "Move now — under 5 minutes!", "Time is up — move your car!"
+6. Progress bar shrinks proportionally
+7. Push notifications fire at 10 min, 5 min, and expiration — even if app is backgrounded or killed
+8. "I'm Leaving" button cancels timer and all scheduled notifications
+9. If notifications are denied, a yellow warning banner appears
+
+**"Park Here" quick start**: Tapping "Park Here" on any complex detail sheet navigates to Timer with that complex pre-selected (via React Navigation route params).
+
+**Edge cases handled**: app backgrounded (AppState listener re-syncs), app killed (scheduled notifications still fire), timer already running (selector hidden), permissions denied (warning banner shown, timer still works without alerts).
+
+---
+
 ## Status Overview
 
 | Step | Status |
@@ -224,8 +284,17 @@ The `EXPO_PUBLIC_` prefix is an Expo convention that makes these values accessib
 | 2.4 — Complex detail sheet | Complete |
 | 2.5 — Search/filter bar | Complete |
 | 2.6 — Color-coded markers | Complete |
-| 3.x — Parking timer | Up next |
-| 4.x — Supabase backend & auth | Not started |
+| 2.7 — Interactive web map (Leaflet) | Complete |
+| 3.1 — Timer screen UI | Complete |
+| 3.2 — Timer countdown logic | Complete |
+| 3.3 — Complex selector auto-fill | Complete |
+| 3.4 — Custom timer option | Complete |
+| 3.5 — Push notification permissions | Complete |
+| 3.6 — Scheduled notifications (10/5/0 min) | Complete |
+| 3.7 — Park Here quick start flow | Complete |
+| 3.8 — Edge case handling | Complete |
+| 3.9 — Timer styling (color shifts) | Complete |
+| 4.x — Supabase backend & auth | Up next |
 | 5.x — Boot spotter feed | Not started |
 | 6.x — Spotter push notifications | Not started |
 | 7.x — Heat map | Not started |

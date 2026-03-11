@@ -9,9 +9,21 @@ interface Props {
   visible: boolean;
   onClose: () => void;
   onParkHere: (complex: Complex) => void;
+  lastSightingAt?: Date | null;
 }
 
-export default function ComplexDetailSheet({ complex, visible, onClose, onParkHere }: Props) {
+function formatTimeAgo(date: Date): string {
+  const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
+  if (seconds < 60) return 'just now';
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
+export default function ComplexDetailSheet({ complex, visible, onClose, onParkHere, lastSightingAt }: Props) {
   if (!complex) return null;
 
   return (
@@ -26,6 +38,20 @@ export default function ComplexDetailSheet({ complex, visible, onClose, onParkHe
           </View>
 
           <Text style={styles.address}>{complex.address}</Text>
+
+          {/* Last sighting banner */}
+          <View style={[styles.sightingBanner, lastSightingAt ? styles.sightingBannerActive : styles.sightingBannerNone]}>
+            <Ionicons
+              name={lastSightingAt ? 'warning' : 'checkmark-circle-outline'}
+              size={18}
+              color={lastSightingAt ? colors.danger : colors.safe}
+            />
+            <Text style={[styles.sightingText, { color: lastSightingAt ? colors.danger : colors.safe }]}>
+              {lastSightingAt
+                ? `Booter last reported ${formatTimeAgo(lastSightingAt)}`
+                : 'No recent booter reports'}
+            </Text>
+          </View>
 
           <View style={styles.infoGrid}>
             <InfoRow
@@ -110,6 +136,26 @@ const styles = StyleSheet.create({
     fontSize: fontSize.sm,
     color: colors.textSecondary,
     marginBottom: spacing.md,
+  },
+  sightingBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: borderRadius.sm,
+    marginBottom: spacing.md,
+  },
+  sightingBannerActive: {
+    backgroundColor: colors.dangerLight,
+  },
+  sightingBannerNone: {
+    backgroundColor: colors.safeLight,
+  },
+  sightingText: {
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.medium,
+    flex: 1,
   },
   infoGrid: {
     gap: spacing.md,
