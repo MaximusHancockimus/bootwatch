@@ -25,14 +25,15 @@ Get the Expo project initialized with the core navigation structure and theming 
 
 Build the map view centered on Rexburg with complex data rendered as markers. This is the first screen users see and what gives the app content on day one.
 
-- [ ] **2.1** — Create the complex data model/type definitions (name, coordinates, time limit, booting company, signage quality, risk level)
-- [ ] **2.2** — Build a seed data file with 10-15 real Rexburg apartment complexes (placeholder data — you'll replace with real research later)
-- [ ] **2.3** — Render the map centered on Rexburg (approx. 43.826, -111.789) with markers for each complex
-- [ ] **2.4** — Tapping a marker opens a bottom sheet / modal with the complex details (name, time limit, booting company, risk badge)
-- [ ] **2.5** — Add a search/filter bar at the top of the map screen to find a complex by name
-- [ ] **2.6** — Style the markers with color coding (red/yellow/green) based on risk level
+- [x] **2.1** — Create the complex data model/type definitions (name, coordinates, time limit, booting company, signage quality, risk level)
+- [x] **2.2** — Build a seed data file with 10-15 real Rexburg apartment complexes (placeholder data — you'll replace with real research later)
+- [x] **2.3** — Render the map centered on Rexburg (approx. 43.826, -111.789) with markers for each complex
+- [x] **2.4** — Tapping a marker opens a bottom sheet / modal with the complex details (name, time limit, booting company, risk badge)
+- [x] **2.5** — Add a search/filter bar at the top of the map screen to find a complex by name
+- [x] **2.6** — Style the markers with color coding (red/yellow/green) based on risk level
+- [x] **2.7** — Add interactive Leaflet map for web with live user location, colored circle markers, and collapsible bottom panel for complex list
 
-**Checkpoint**: Map loads centered on Rexburg. Colored markers show apartment complexes. Tapping one shows its parking rules and booting company. You can search by name.
+**Checkpoint**: Full interactive map loads centered on Rexburg with colored markers for each complex. User's live location shown on map. Search bar floats over the map. Collapsible bottom panel slides up to show a scrollable complex list. Tapping a marker or list item opens the detail sheet. Native map (react-native-maps) used on mobile, Leaflet used on web.
 
 ---
 
@@ -86,8 +87,9 @@ Build the community-driven spotter feed — the viral growth engine. Users repor
 - [ ] **5.6** — Add pull-to-refresh as a fallback
 - [ ] **5.7** — Show sighting pins on the Map screen (Step 2) in addition to complex markers — use a distinct icon (e.g., warning triangle) with a time-decay (fade out after 2 hours)
 - [ ] **5.8** — Style the feed: urgent color treatment, relative timestamps ("3 min ago"), empty state message encouraging the first report
+- [ ] **5.9** — Wire "Booter last reported X ago" banner in complex detail sheet to real sighting data (UI already built, just needs data)
 
-**Checkpoint**: Users can report a boot truck sighting with a photo. Reports appear in the live feed and as pins on the map. New reports from other users stream in via realtime.
+**Checkpoint**: Users can report a boot truck sighting with a photo. Reports appear in the live feed and as pins on the map. New reports from other users stream in via realtime. Complex detail sheet shows when a booter was last reported at that location.
 
 ---
 
