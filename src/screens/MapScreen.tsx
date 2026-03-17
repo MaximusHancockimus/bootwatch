@@ -1,9 +1,10 @@
 import { useCallback, useMemo, useState } from 'react';
-import { Animated, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { complexes } from '../data/complexes';
 import { Complex } from '../types/complex';
+import { useSightings } from '../hooks/useSightings';
 import ComplexDetailSheet from '../components/ComplexDetailSheet';
 import RiskBadge from '../components/RiskBadge';
 import { colors, fontSize, fontWeight, spacing, borderRadius } from '../theme';
@@ -22,6 +23,7 @@ export default function MapScreen() {
   const [sheetVisible, setSheetVisible] = useState(false);
   const [panelExpanded, setPanelExpanded] = useState(false);
   const navigation = useNavigation<any>();
+  const { getLatestSighting } = useSightings();
 
   const filtered = useMemo(
     () => complexes.filter((c) => c.name.toLowerCase().includes(search.toLowerCase())),
@@ -120,6 +122,14 @@ export default function MapScreen() {
         visible={sheetVisible}
         onClose={() => setSheetVisible(false)}
         onParkHere={handleParkHere}
+        lastSightingAt={
+          selectedComplex
+            ? (() => {
+                const s = getLatestSighting(selectedComplex.id);
+                return s ? new Date(s.created_at) : null;
+              })()
+            : null
+        }
       />
     </View>
   );

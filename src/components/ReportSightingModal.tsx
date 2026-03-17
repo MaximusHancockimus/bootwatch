@@ -1,0 +1,489 @@
+import { useState } from 'react';
+import { ActivityIndicator, Alert, Animated, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
+import { supabase } from '../lib/supabase';
+import { useAuth } from '../context/AuthContext';
+import { complexes } from '../data/complexes';
+import { ReportType } from '../types/sighting';
+import { RISK_CONFIG } from '../utils/risk';
+import { colors, fontSize, fontWeight, spacing, borderRadius } from '../theme';
+
+interface Props {
+  visible: boolean;
+  onClose: () => void;
+  onSuccess: () => void;
+}
+
+const TIME_OPTIONS = [
+  { label: 'Just now', minutes: 0 },
+  { label: '5 min ago', minutes: 5 },
+  { label: '15 min ago', minutes: 15 },
+  { label: '30 min ago', minutes: 30 },
+  { label: '1 hour ago', minutes: 60 },
+];
+
+export default function ReportSightingModal({ visible, onClose, onSuccess }: Props) {
+  const { user } = useAuth();
+  const [reportType, setReportType] = useState<ReportType>('spotter');
+  const [selectedComplexId, setSelectedComplexId] = useState<string | null>(null);
+  const [timeOffset, setTimeOffset] = useState(0);
+  const [complexSearch, setComplexSearch] = useState('');
+  const [isAnonymous, setIsAnonymous] = useState(false);
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  async function pickPhoto() {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      quality: 0.6,
+      allowsEditing: true,
+      aspect: [4, 3],
+    });
+    if (!result.canceled && result.assets[0]) {
+      setPhotoUri(result.assets[0].uri);
+    }
+  }
+
+  async function uploadPhoto(uri: string): Promise<string | null> {
+    try {
+      const ext = uri.split('.').pop() ?? 'jpg';
+      const fileName = `${user!.id}/${Date.now()}.${ext}`;
+
+      const response = await fetch(uri);
+      const blob = await response.blob();
+
+      const { error } = await supabase.storage
+        .from('sighting-photos')
+        .upload(fileName, blob, { contentType: `image/${ext}` });
+
+      if (error) return null;
+
+      const { data } = supabase.storage.from('sighting-photos').getPublicUrl(fileName);
+      return data.publicUrl;
+    } catch {
+      return null;
+    }
+  }
+
+  async function handleSubmit() {
+    if (!selectedComplexId || !user) return;
+    setSubmitting(true);
+
+    const complex = complexes.find((c) => c.id === selectedComplexId)!;
+    let photoUrl: string | null = null;
+
+    if (photoUri) {
+      photoUrl = await uploadPhoto(photoUri);
+    }
+
+    const sightingTime = new Date(Date.now() - timeOffset * 60 * 1000).toISOString();
+
+    const { error } = await supabase.from('sightings').insert({
+      user_id: user.id,
+      complex_id: selectedComplexId,
+      latitude: complex.latitude,
+      longitude: complex.longitude,
+      photo_url: photoUrl,
+      report_type: reportType,
+      is_anonymous: isAnonymous,
+      created_at: sightingTime,
+    });
+
+    setSubmitting(false);
+
+    if (error) {
+      if (Platform.OS === 'web') alert('Failed to submit report. Please try again.');
+      else Alert.alert('Error', 'Failed to submit report. Please try again.');
+    } else {
+      setReportType('spotter');
+      setSelectedComplexId(null);
+      setTimeOffset(0);
+      setIsAnonymous(false);
+      setComplexSearch('');
+      setPhotoUri(null);
+      onSuccess();
+      onClose();
+    }
+  }
+
+  function handleClose() {
+    setReportType('spotter');
+    setSelectedComplexId(null);
+    setTimeOffset(0);
+    setIsAnonymous(false);
+    setComplexSearch('');
+    setPhotoUri(null);
+    onClose();
+  }
+
+  const filteredComplexes = complexSearch.trim()
+    ? complexes.filter((c) => c.name.toLowerCase().includes(complexSearch.toLowerCase()))
+    : complexes;
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose}>
+      <Pressable style={styles.overlay} onPress={handleClose}>
+        <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
+          <View style={styles.handle} />
+          <Text style={styles.title}>Report</Text>
+          <Text style={styles.subtitle}>What happened?</Text>
+
+          {/* Report type selector */}
+          <View style={styles.typeRow}>
+            <Pressable
+              style={[styles.typeOption, reportType === 'spotter' && styles.typeOptionSelected]}
+              onPress={() => setReportType('spotter')}
+            >
+              <Ionicons name="eye-outline" size={22} color={reportType === 'spotter' ? colors.warning : colors.textSecondary} />
+              <Text style={[styles.typeLabel, reportType === 'spotter' && styles.typeLabelSelected]}>
+                Spotted a boot truck
+              </Text>
+            </Pressable>
+            <Pressable
+              style={[styles.typeOption, reportType === 'booted' && styles.typeOptionBooted]}
+              onPress={() => setReportType('booted')}
+            >
+              <Ionicons name="lock-closed-outline" size={22} color={reportType === 'booted' ? colors.danger : colors.textSecondary} />
+              <Text style={[styles.typeLabel, reportType === 'booted' && styles.typeLabelBooted]}>
+                I got booted
+              </Text>
+            </Pressable>
+          </View>
+
+          <Text style={styles.sectionLabel}>Where?</Text>
+          <View style={styles.searchRow}>
+            <Ionicons name="search" size={16} color={colors.textSecondary} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search complexes..."
+              placeholderTextColor={colors.textSecondary}
+              value={complexSearch}
+              onChangeText={setComplexSearch}
+              autoCorrect={false}
+            />
+            {complexSearch.length > 0 && (
+              <Pressable onPress={() => setComplexSearch('')}>
+                <Ionicons name="close-circle" size={18} color={colors.textSecondary} />
+              </Pressable>
+            )}
+          </View>
+          <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
+            {filteredComplexes.map((c) => (
+              <Pressable
+                key={c.id}
+                style={[styles.item, selectedComplexId === c.id && styles.itemSelected]}
+                onPress={() => setSelectedComplexId(c.id)}
+              >
+                <View style={[styles.dot, { backgroundColor: RISK_CONFIG[c.riskLevel].color }]} />
+                <Text style={styles.itemText}>{c.name}</Text>
+                {selectedComplexId === c.id && (
+                  <Ionicons name="checkmark-circle" size={20} color={colors.primary} />
+                )}
+              </Pressable>
+            ))}
+          </ScrollView>
+
+          {/* Time selector */}
+          <Text style={styles.sectionLabel}>When did you see it?</Text>
+          <View style={styles.timeRow}>
+            {TIME_OPTIONS.map((opt) => (
+              <Pressable
+                key={opt.minutes}
+                style={[styles.timeChip, timeOffset === opt.minutes && styles.timeChipSelected]}
+                onPress={() => setTimeOffset(opt.minutes)}
+              >
+                <Text style={[styles.timeChipText, timeOffset === opt.minutes && styles.timeChipTextSelected]}>
+                  {opt.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+
+          {/* Anonymous toggle */}
+          <Pressable style={styles.anonRow} onPress={() => setIsAnonymous((v) => !v)}>
+            <View style={styles.anonLabel}>
+              <Ionicons name="shield-checkmark-outline" size={20} color={isAnonymous ? colors.primary : colors.textSecondary} />
+              <View>
+                <Text style={styles.anonTitle}>Post anonymously</Text>
+                <Text style={styles.anonSubtitle}>Your name won't appear on this report</Text>
+              </View>
+            </View>
+            <View style={[styles.toggle, isAnonymous && styles.toggleActive]}>
+              <View style={[styles.toggleThumb, isAnonymous && styles.toggleThumbActive]} />
+            </View>
+          </Pressable>
+
+          {/* Photo picker */}
+          <Pressable style={styles.photoButton} onPress={pickPhoto}>
+            {photoUri ? (
+              <Image source={{ uri: photoUri }} style={styles.photoPreview} />
+            ) : (
+              <View style={styles.photoPlaceholder}>
+                <Ionicons name="camera-outline" size={24} color={colors.textSecondary} />
+                <Text style={styles.photoPlaceholderText}>Add photo (optional)</Text>
+              </View>
+            )}
+          </Pressable>
+
+          <Pressable
+            style={[styles.submitButton, (!selectedComplexId || submitting) && styles.submitButtonDisabled]}
+            onPress={handleSubmit}
+            disabled={!selectedComplexId || submitting}
+          >
+            {submitting ? (
+              <ActivityIndicator color={colors.textInverse} />
+            ) : (
+              <>
+                <Ionicons name="alert-circle" size={20} color={colors.textInverse} />
+                <Text style={styles.submitButtonText}>Report Sighting</Text>
+              </>
+            )}
+          </Pressable>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+const styles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.3)',
+  },
+  sheet: {
+    backgroundColor: colors.background,
+    borderTopLeftRadius: borderRadius.lg,
+    borderTopRightRadius: borderRadius.lg,
+    padding: spacing.lg,
+    paddingBottom: spacing.xl,
+    maxHeight: '80%',
+  },
+  handle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.border,
+    alignSelf: 'center',
+    marginBottom: spacing.md,
+  },
+  title: {
+    fontSize: fontSize.xl,
+    fontWeight: fontWeight.bold,
+    color: colors.text,
+    marginBottom: spacing.xs,
+  },
+  subtitle: {
+    fontSize: fontSize.md,
+    color: colors.textSecondary,
+    marginBottom: spacing.md,
+  },
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.sm,
+    marginBottom: spacing.sm,
+    gap: spacing.xs,
+  },
+  searchInput: {
+    flex: 1,
+    paddingVertical: Platform.OS === 'web' ? spacing.sm : spacing.sm,
+    fontSize: fontSize.md,
+    color: colors.text,
+    outlineStyle: 'none' as any,
+  },
+  list: {
+    maxHeight: 180,
+    marginBottom: spacing.md,
+  },
+  listContent: {
+    gap: spacing.sm,
+  },
+  item: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: spacing.sm,
+  },
+  itemSelected: {
+    borderColor: colors.primary,
+    backgroundColor: '#EFF6FF',
+  },
+  dot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  itemText: {
+    fontSize: fontSize.md,
+    color: colors.text,
+    flex: 1,
+  },
+  typeRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  typeOption: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  typeOptionSelected: {
+    borderColor: colors.warning,
+    backgroundColor: colors.warningLight,
+  },
+  typeOptionBooted: {
+    borderColor: colors.danger,
+    backgroundColor: colors.dangerLight,
+  },
+  typeLabel: {
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.medium,
+    color: colors.textSecondary,
+  },
+  typeLabelSelected: {
+    color: colors.warning,
+    fontWeight: fontWeight.semibold,
+  },
+  typeLabelBooted: {
+    color: colors.danger,
+    fontWeight: fontWeight.semibold,
+  },
+  sectionLabel: {
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.semibold,
+    color: colors.textSecondary,
+    marginBottom: spacing.sm,
+  },
+  timeRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  timeChip: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.full,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  timeChipSelected: {
+    borderColor: colors.primary,
+    backgroundColor: '#EFF6FF',
+  },
+  timeChipText: {
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+  },
+  timeChipTextSelected: {
+    color: colors.primary,
+    fontWeight: fontWeight.semibold,
+  },
+  anonRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    cursor: 'pointer' as any,
+  },
+  toggle: {
+    width: 44,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: colors.border,
+    padding: 2,
+    justifyContent: 'center',
+  },
+  toggleActive: {
+    backgroundColor: colors.primary,
+  },
+  toggleThumb: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: '#fff',
+  },
+  toggleThumbActive: {
+    alignSelf: 'flex-end',
+  },
+  anonLabel: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    flex: 1,
+  },
+  anonTitle: {
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.semibold,
+    color: colors.text,
+  },
+  anonSubtitle: {
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+    marginTop: 1,
+  },
+  photoButton: {
+    marginBottom: spacing.md,
+  },
+  photoPreview: {
+    width: '100%',
+    height: 120,
+    borderRadius: borderRadius.md,
+  },
+  photoPlaceholder: {
+    width: '100%',
+    height: 80,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+  },
+  photoPlaceholderText: {
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+  },
+  submitButton: {
+    backgroundColor: colors.danger,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.md,
+    gap: spacing.sm,
+  },
+  submitButtonDisabled: {
+    opacity: 0.4,
+  },
+  submitButtonText: {
+    color: colors.textInverse,
+    fontSize: fontSize.lg,
+    fontWeight: fontWeight.semibold,
+  },
+});
