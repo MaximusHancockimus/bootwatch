@@ -13,6 +13,23 @@ interface AuthState {
 
 const AuthContext = createContext<AuthState | undefined>(undefined);
 
+async function ensureProfile(user: User) {
+  const { data } = await supabase
+    .from('profiles')
+    .select('id, display_name')
+    .eq('id', user.id)
+    .single();
+
+  const metaName = user.user_metadata?.display_name;
+  const fallback = metaName || user.email?.split('@')[0] || 'User';
+
+  if (!data) {
+    await supabase.from('profiles').insert({ id: user.id, display_name: fallback });
+  } else if (!data.display_name) {
+    await supabase.from('profiles').update({ display_name: fallback }).eq('id', user.id);
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
@@ -20,11 +37,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
+      if (session?.user) ensureProfile(session.user);
       setLoading(false);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
+      if (session?.user) ensureProfile(session.user);
     });
 
     return () => subscription.unsubscribe();
