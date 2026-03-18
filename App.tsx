@@ -1,13 +1,17 @@
-import { NavigationContainer } from '@react-navigation/native';
+import { useEffect, useRef } from 'react';
+import { NavigationContainer, NavigationContainerRef } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, Platform, View } from 'react-native';
+import * as Notifications from 'expo-notifications';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
+import { usePushToken } from './src/hooks/usePushToken';
 import TabNavigator from './src/navigation/TabNavigator';
 import AuthScreen from './src/screens/AuthScreen';
 import { colors } from './src/theme';
 
 function RootNavigator() {
   const { user, loading } = useAuth();
+  usePushToken();
 
   if (loading) {
     return (
@@ -21,9 +25,24 @@ function RootNavigator() {
 }
 
 export default function App() {
+  const navigationRef = useRef<NavigationContainerRef<any>>(null);
+
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+
+    const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
+      const data = response.notification.request.content.data;
+      if (data?.screen === 'Feed') {
+        navigationRef.current?.navigate('Feed');
+      }
+    });
+
+    return () => subscription.remove();
+  }, []);
+
   return (
     <AuthProvider>
-      <NavigationContainer>
+      <NavigationContainer ref={navigationRef}>
         <RootNavigator />
         <StatusBar style="auto" />
       </NavigationContainer>

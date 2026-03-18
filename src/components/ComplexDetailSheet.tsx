@@ -10,6 +10,8 @@ interface Props {
   onClose: () => void;
   onParkHere: (complex: Complex) => void;
   lastSightingAt?: Date | null;
+  isSaved?: boolean;
+  onToggleSave?: (complex: Complex) => void;
 }
 
 function formatTimeAgo(date: Date): string {
@@ -23,7 +25,7 @@ function formatTimeAgo(date: Date): string {
   return `${days}d ago`;
 }
 
-export default function ComplexDetailSheet({ complex, visible, onClose, onParkHere, lastSightingAt }: Props) {
+export default function ComplexDetailSheet({ complex, visible, onClose, onParkHere, lastSightingAt, isSaved, onToggleSave }: Props) {
   if (!complex) return null;
 
   return (
@@ -72,6 +74,32 @@ export default function ComplexDetailSheet({ complex, visible, onClose, onParkHe
           </View>
 
           {complex.notes && <Text style={styles.notes}>{complex.notes}</Text>}
+
+          {onToggleSave && (
+            <Pressable
+              style={[styles.followRow, isSaved && styles.followRowActive]}
+              onPress={() => onToggleSave(complex)}
+            >
+              <Ionicons
+                name={isSaved ? 'notifications' : 'notifications-outline'}
+                size={20}
+                color={isSaved ? colors.primary : colors.textSecondary}
+              />
+              <View style={styles.followTextContainer}>
+                <Text style={[styles.followLabel, isSaved && styles.followLabelActive]}>
+                  {isSaved ? 'Following' : 'Follow this complex'}
+                </Text>
+                <Text style={styles.followDescription}>
+                  {isSaved
+                    ? 'You will be notified when a booter is spotted here'
+                    : 'Get push alerts when a boot truck is reported here'}
+                </Text>
+              </View>
+              {isSaved && (
+                <Ionicons name="checkmark-circle" size={20} color={colors.primary} />
+              )}
+            </Pressable>
+          )}
 
           <Pressable
             style={styles.parkButton}
@@ -181,6 +209,37 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
     marginBottom: spacing.lg,
     lineHeight: 20,
+  },
+  followRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    marginBottom: spacing.sm,
+  },
+  followRowActive: {
+    borderColor: colors.primary,
+    backgroundColor: '#EFF6FF',
+  },
+  followTextContainer: {
+    flex: 1,
+  },
+  followLabel: {
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.semibold,
+    color: colors.text,
+  },
+  followLabelActive: {
+    color: colors.primary,
+  },
+  followDescription: {
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+    marginTop: 1,
   },
   parkButton: {
     backgroundColor: colors.primary,

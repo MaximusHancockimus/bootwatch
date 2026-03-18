@@ -10,12 +10,12 @@ A step-by-step build plan for the BootWatch MVP. Each step has substeps so we ca
 
 Get the Expo project initialized with the core navigation structure and theming in place. After this step, the app launches and you can tap between empty tab screens.
 
-- [ ] **1.1** — Initialize Expo project with TypeScript template
-- [ ] **1.2** — Install core dependencies (React Navigation, React Native Maps, Expo Notifications, Supabase JS client, etc.)
-- [ ] **1.3** — Set up bottom tab navigation with four tabs: **Map**, **Timer**, **Feed**, **Profile**
-- [ ] **1.4** — Create placeholder screens for each tab with basic styling
-- [ ] **1.5** — Define the app color palette, typography, and shared theme constants (dark/urgent reds for boot alerts, greens for safe zones)
-- [ ] **1.6** — Verify the app runs cleanly on Expo Go (iOS and/or Android)
+- [x] **1.1** — Initialize Expo project with TypeScript template
+- [x] **1.2** — Install core dependencies (React Navigation, React Native Maps, Expo Notifications, Supabase JS client, etc.)
+- [x] **1.3** — Set up bottom tab navigation with four tabs: **Map**, **Timer**, **Feed**, **Profile**
+- [x] **1.4** — Create placeholder screens for each tab with basic styling
+- [x] **1.5** — Define the app color palette, typography, and shared theme constants (dark/urgent reds for boot alerts, greens for safe zones)
+- [x] **1.6** — Verify the app runs cleanly on Expo Go (iOS and/or Android)
 
 **Checkpoint**: App launches, four tabs are visible and tappable, each shows its placeholder name. No functionality yet.
 
@@ -41,15 +41,15 @@ Build the map view centered on Rexburg with complex data rendered as markers. Th
 
 Build the parking timer — the core day-one value feature. A user picks a complex (or sets a custom time) and gets push notifications before their time expires.
 
-- [ ] **3.1** — Build the Timer screen UI: complex selector dropdown, countdown display, start/cancel buttons
-- [ ] **3.2** — Implement timer logic: countdown state, background-safe timer using Expo's task manager or notification scheduling
-- [ ] **3.3** — Wire up the complex selector so choosing a complex auto-fills the timer duration from seed data
-- [ ] **3.4** — Add a "Custom Timer" option for unlisted complexes (user manually enters minutes)
-- [ ] **3.5** — Request and configure Expo push notification permissions
-- [ ] **3.6** — Schedule local push notifications at 10 minutes remaining, 5 minutes remaining, and expiration
-- [ ] **3.7** — Add a "quick start" flow: tapping "Park Here" from a complex detail (Step 2.4) navigates to the Timer screen with that complex pre-selected
-- [ ] **3.8** — Handle edge cases: app backgrounded, app killed, timer already running, notification permissions denied
-- [ ] **3.9** — Style the timer screen (large countdown, color shifts from green → yellow → red as time runs out)
+- [x] **3.1** — Build the Timer screen UI: complex selector dropdown, countdown display, start/cancel buttons
+- [x] **3.2** — Implement timer logic: countdown state, background-safe timer using Expo's task manager or notification scheduling
+- [x] **3.3** — Wire up the complex selector so choosing a complex auto-fills the timer duration from seed data
+- [x] **3.4** — Add a "Custom Timer" option for unlisted complexes (user manually enters minutes)
+- [x] **3.5** — Request and configure Expo push notification permissions
+- [x] **3.6** — Schedule local push notifications at 10 minutes remaining, 5 minutes remaining, and expiration
+- [x] **3.7** — Add a "quick start" flow: tapping "Park Here" from a complex detail (Step 2.4) navigates to the Timer screen with that complex pre-selected
+- [x] **3.8** — Handle edge cases: app backgrounded, app killed, timer already running, notification permissions denied
+- [x] **3.9** — Style the timer screen (large countdown, color shifts from green → yellow → red as time runs out)
 
 **Checkpoint**: User can select a complex or set a custom time, start a timer, see a live countdown, and receive push notifications at 10min/5min/expired — even when the app is backgrounded.
 
@@ -59,17 +59,17 @@ Build the parking timer — the core day-one value feature. A user picks a compl
 
 Set up the backend so user-generated data (spotter reports, saved complexes) can be stored and shared across users.
 
-- [ ] **4.1** — Create a Supabase project and grab the API URL + anon key
-- [ ] **4.2** — Create a Supabase config/client file in the app
-- [ ] **4.3** — Design and create the database tables:
-  - `profiles` — user ID, display name, saved complexes, push token
+- [x] **4.1** — Create a Supabase project and grab the API URL + anon key
+- [x] **4.2** — Create a Supabase config/client file in the app
+- [x] **4.3** — Design and create the database tables:
+  - `profiles` — user ID, display name, saved complexes, push token, avatar color
   - `complexes` — complex directory (mirrors seed data, but now in the DB)
-  - `sightings` — boot truck reports (user ID, complex ID, coordinates, photo URL, timestamp)
-- [ ] **4.4** — Set up Row Level Security (RLS) policies: anyone can read sightings/complexes, only authenticated users can insert sightings
-- [ ] **4.5** — Implement auth flow: sign-up / sign-in screen with email (or phone if preferred)
-- [ ] **4.6** — Build the Profile tab: show logged-in user info, saved complexes list, sign-out button
-- [ ] **4.7** — Migrate the seed complex data from the local file to Supabase so the map and timer pull from the database
-- [ ] **4.8** — Verify auth works end-to-end: sign up → sign in → see profile → sign out
+  - `sightings` — boot truck reports (user ID, complex ID, coordinates, photo URL, report type, is_anonymous, timestamp)
+- [x] **4.4** — Set up Row Level Security (RLS) policies: anyone can read sightings/complexes, only authenticated users can insert sightings
+- [x] **4.5** — Implement auth flow: sign-up / sign-in screen with email (or phone if preferred)
+- [x] **4.6** — Build the Profile tab: show logged-in user info, saved complexes list, avatar color picker, sign-out button
+- [x] **4.7** — Migrate the seed complex data from the local file to Supabase so the map and timer pull from the database
+- [x] **4.8** — Verify auth works end-to-end: sign up → sign in → see profile → sign out
 
 **Checkpoint**: Users can create an account, sign in, and see their profile. Complex data is served from Supabase. Database tables are ready for spotter reports.
 
@@ -79,15 +79,19 @@ Set up the backend so user-generated data (spotter reports, saved complexes) can
 
 Build the community-driven spotter feed — the viral growth engine. Users report boot truck sightings and see a live feed of reports.
 
-- [ ] **5.1** — Build the Feed screen UI: chronological list of sighting cards (complex name, relative timestamp, optional photo thumbnail)
-- [ ] **5.2** — Fetch sightings from the Supabase `sightings` table, ordered by most recent
-- [ ] **5.3** — Build the "Report Sighting" flow: FAB button → modal/screen with complex picker, optional photo (Expo ImagePicker), and submit button
-- [ ] **5.4** — Upload the photo to Supabase Storage and save the sighting row to the database
-- [ ] **5.5** — Enable Supabase Realtime on the `sightings` table so new reports appear in the feed instantly without pull-to-refresh
-- [ ] **5.6** — Add pull-to-refresh as a fallback
-- [ ] **5.7** — Show sighting pins on the Map screen (Step 2) in addition to complex markers — use a distinct icon (e.g., warning triangle) with a time-decay (fade out after 2 hours)
-- [ ] **5.8** — Style the feed: urgent color treatment, relative timestamps ("3 min ago"), empty state message encouraging the first report
-- [ ] **5.9** — Wire "Booter last reported X ago" banner in complex detail sheet to real sighting data (UI already built, just needs data)
+- [x] **5.1** — Build the Feed screen UI: chronological list of sighting cards (complex name, relative timestamp, optional photo thumbnail)
+- [x] **5.2** — Fetch sightings from the Supabase `sightings` table, ordered by most recent
+- [x] **5.3** — Build the "Report Sighting" flow: FAB button → modal with complex search, time offset, report type, anonymous toggle, optional photo, and submit
+- [x] **5.4** — Upload the photo to Supabase Storage and save the sighting row to the database
+- [x] **5.5** — Enable Supabase Realtime on the `sightings` table so new reports appear in the feed instantly without pull-to-refresh
+- [x] **5.6** — Add pull-to-refresh as a fallback
+- [x] **5.7** — Show sighting pins on the Map screen (Step 2) in addition to complex markers — use a distinct icon (e.g., warning triangle) with a time-decay (fade out after 2 hours)
+- [x] **5.8** — Style the feed: urgent color treatment, narrative format, 3-tier aging (active/recent/stale), avatar colors, empty state
+- [x] **5.9** — Wire "Booter last reported X ago" banner in complex detail sheet to real sighting data
+- [x] **5.10** — Customizable avatar colors on profile screen
+- [x] **5.11** — Anonymous posting toggle for user privacy
+- [x] **5.12** — Privacy disclaimer banner on feed screen
+- [x] **5.13** — Complex search bar in report modal
 
 **Checkpoint**: Users can report a boot truck sighting with a photo. Reports appear in the live feed and as pins on the map. New reports from other users stream in via realtime. Complex detail sheet shows when a booter was last reported at that location.
 
@@ -156,4 +160,4 @@ Final pass before putting the app in real users' hands.
 
 ---
 
-*Last updated: March 9, 2026*
+*Last updated: March 9, 2026 — Steps 1-5 complete*
