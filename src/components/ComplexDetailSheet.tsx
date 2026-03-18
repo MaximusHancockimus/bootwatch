@@ -12,6 +12,7 @@ interface Props {
   lastSightingAt?: Date | null;
   isSaved?: boolean;
   onToggleSave?: (complex: Complex) => void;
+  sightingCount?: number;
 }
 
 function formatTimeAgo(date: Date): string {
@@ -25,7 +26,7 @@ function formatTimeAgo(date: Date): string {
   return `${days}d ago`;
 }
 
-export default function ComplexDetailSheet({ complex, visible, onClose, onParkHere, lastSightingAt, isSaved, onToggleSave }: Props) {
+export default function ComplexDetailSheet({ complex, visible, onClose, onParkHere, lastSightingAt, isSaved, onToggleSave, sightingCount }: Props) {
   if (!complex) return null;
 
   return (
@@ -41,7 +42,7 @@ export default function ComplexDetailSheet({ complex, visible, onClose, onParkHe
 
           <Text style={styles.address}>{complex.address}</Text>
 
-          {/* Last sighting banner */}
+          {/* Sighting banners */}
           <View style={[styles.sightingBanner, lastSightingAt ? styles.sightingBannerActive : styles.sightingBannerNone]}>
             <Ionicons
               name={lastSightingAt ? 'warning' : 'checkmark-circle-outline'}
@@ -54,6 +55,15 @@ export default function ComplexDetailSheet({ complex, visible, onClose, onParkHe
                 : 'No recent booter reports'}
             </Text>
           </View>
+
+          {sightingCount != null && sightingCount > 0 && (
+            <View style={styles.statRow}>
+              <Ionicons name="stats-chart" size={16} color={colors.textSecondary} />
+              <Text style={styles.statText}>
+                {sightingCount} {sightingCount === 1 ? 'report' : 'reports'} in the last 30 days
+              </Text>
+            </View>
+          )}
 
           <View style={styles.infoGrid}>
             <InfoRow
@@ -184,6 +194,16 @@ const styles = StyleSheet.create({
     fontSize: fontSize.sm,
     fontWeight: fontWeight.medium,
     flex: 1,
+  },
+  statRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  statText: {
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
   },
   infoGrid: {
     gap: spacing.md,

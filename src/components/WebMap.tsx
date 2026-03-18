@@ -8,6 +8,7 @@ import { REXBURG_CENTER } from '../data/complexes';
 interface Props {
   complexes: Complex[];
   onMarkerPress: (complex: Complex) => void;
+  colorOverrides?: Map<string, string>;
 }
 
 function createMarkerIcon(color: string) {
@@ -26,7 +27,7 @@ function createMarkerIcon(color: string) {
   });
 }
 
-export default function WebMap({ complexes, onMarkerPress }: Props) {
+export default function WebMap({ complexes, onMarkerPress, colorOverrides }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const markersRef = useRef<L.Marker[]>([]);
@@ -74,9 +75,9 @@ export default function WebMap({ complexes, onMarkerPress }: Props) {
     markersRef.current = [];
 
     complexes.forEach((complex) => {
-      const config = RISK_CONFIG[complex.riskLevel];
+      const color = colorOverrides?.get(complex.id) ?? RISK_CONFIG[complex.riskLevel].color;
       const marker = L.marker([complex.latitude, complex.longitude], {
-        icon: createMarkerIcon(config.color),
+        icon: createMarkerIcon(color),
       })
         .bindTooltip(complex.name, { direction: 'top', offset: [0, -16] })
         .on('click', () => onMarkerPress(complex))
@@ -84,7 +85,7 @@ export default function WebMap({ complexes, onMarkerPress }: Props) {
 
       markersRef.current.push(marker);
     });
-  }, [complexes, onMarkerPress]);
+  }, [complexes, onMarkerPress, colorOverrides]);
 
   return (
     <div
