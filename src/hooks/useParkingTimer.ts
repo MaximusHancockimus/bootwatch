@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
 import { useNotifications } from './useNotifications';
+import { supabase } from '../lib/supabase';
 
 export type TimerPhase = 'idle' | 'running' | 'warning' | 'critical' | 'expired';
 
@@ -51,6 +52,10 @@ export function useParkingTimer() {
       intervalRef.current = null;
       endTimeRef.current = null;
       setState((prev) => ({ ...prev, isRunning: false, phase: 'expired' }));
+
+      supabase.auth.getUser().then(({ data: { user } }) => {
+        if (user) supabase.from('active_timers').delete().eq('user_id', user.id);
+      });
     }
   }, []);
 
@@ -72,7 +77,7 @@ export function useParkingTimer() {
     };
   }, []);
 
-  const start = useCallback(async (durationMinutes: number) => {
+  const start = useCallback(async (durationMinutes: number, complexId?: string) => {
     const totalSeconds = durationMinutes * 60;
     const endTime = Date.now() + totalSeconds * 1000;
     endTimeRef.current = endTime;
@@ -87,7 +92,18 @@ export function useParkingTimer() {
       isRunning: true,
     });
 
-    // Schedule notifications — these fire even when the app is backgrounded/killed
+    // Store active timer in Supabase for push notification targeting
+    if (complexId) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase.from('active_timers').upsert({
+          user_id: user.id,
+          complex_id: complexId,
+          expires_at: new Date(endTime).toISOString(),
+        }, { onConflict: 'user_id' });
+      }
+    }
+
     await cancelAllScheduled();
 
     let granted = permissionStatus === 'granted';
@@ -124,6 +140,11 @@ export function useParkingTimer() {
     endTimeRef.current = null;
     await cancelAllScheduled();
     setState({ phase: 'idle', totalSeconds: 0, remainingSeconds: 0, isRunning: false });
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      await supabase.from('active_timers').delete().eq('user_id', user.id);
+    }
   }, [cancelAllScheduled]);
 
   return { ...state, start, cancel, permissionStatus };

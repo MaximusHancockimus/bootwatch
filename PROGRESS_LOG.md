@@ -268,6 +268,85 @@ The `EXPO_PUBLIC_` prefix is an Expo convention that makes these values accessib
 
 ---
 
+## Step 4.1–4.8 — Supabase Backend & Authentication
+
+**What we did**: Set up the entire backend infrastructure using Supabase — database, authentication, row-level security, and user profiles.
+
+**What is Supabase?** An open-source Firebase alternative that provides a Postgres database, authentication, file storage, real-time subscriptions, and edge functions — all with a generous free tier. It replaces what would normally require setting up a server, database, and auth system from scratch.
+
+**What got created**:
+
+| File | What It Does |
+|---|---|
+| `src/lib/supabase.ts` | Initializes the Supabase client with project URL and anon key from environment variables. Configures session persistence using AsyncStorage so users stay logged in. |
+| `src/context/AuthContext.tsx` | React context providing global auth state (`session`, `user`, `loading`). Exposes `signUp`, `signIn`, `signOut` functions. Auto-creates profile rows for users missing them (handles accounts created before the trigger existed). |
+| `src/screens/AuthScreen.tsx` | Combined sign-up/sign-in screen with email/password authentication. Handles display name input for sign-up, loading states, error messages, and email confirmation flow. |
+| `src/screens/ProfileScreen.tsx` | Displays user avatar (with customizable color), display name, email, saved complexes list, and sign-out button. |
+| `supabase/schema.sql` | Full database schema: `profiles`, `complexes`, `sightings` tables with RLS policies, `handle_new_user` trigger, indexes, and seed data for 12 Rexburg complexes. |
+| `.env` | Environment variables for `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY` (git-ignored). |
+
+**Database tables**:
+- **`profiles`** — extends `auth.users` with `display_name`, `saved_complexes`, `push_token`, `avatar_color`
+- **`complexes`** — apartment complex directory (seeded with 12 Rexburg locations)
+- **`sightings`** — boot truck reports with `user_id`, `complex_id`, coordinates, photo URL, `report_type`, `is_anonymous`, timestamp
+
+**Row Level Security (RLS)**: Everyone can read profiles/complexes/sightings. Only authenticated users can insert sightings. Users can only update their own profile. Users can insert their own profile row (for missing profile recovery).
+
+**Auth flow**: Sign up → email confirmation → sign in → auto-create profile if missing → see Profile tab.
+
+---
+
+## Step 5.1–5.9 — Boot Spotter Feed
+
+**What we did**: Built the community-driven boot truck sighting feed — the viral growth engine of the app.
+
+**What got created**:
+
+| File | What It Does |
+|---|---|
+| `src/types/sighting.ts` | TypeScript types for `Sighting` (including `report_type`, `is_anonymous`, `avatar_color`) and `ReportType` (`spotter` or `booted`). |
+| `src/hooks/useSightings.ts` | Core sightings hook. Fetches the 50 most recent sightings from Supabase, enriches them with display names and avatar colors from `profiles`, subscribes to real-time inserts via Supabase Realtime. Respects the `is_anonymous` flag — anonymous posts get "Anonymous" name and gray color. |
+| `src/utils/time.ts` | Utility functions: `timeAgo` (relative timestamps like "3 min ago") and `isWithinHours` (checks if a timestamp is within N hours, used for aging tiers). |
+| `src/screens/FeedScreen.tsx` | Full feed UI with three-tier aging system, narrative-style sighting cards, privacy banner, and floating action button. |
+| `src/components/ReportSightingModal.tsx` | Report modal with: report type selector (spotted vs. got booted), complex search bar, time offset picker, anonymous toggle, photo picker, and submit button. |
+| `src/components/ComplexDetailSheet.tsx` | Updated with "Booter last reported X ago" banner wired to real sighting data. |
+| `src/screens/MapScreen.tsx` | Updated to pass latest sighting timestamps to the detail sheet. |
+
+**Feed three-tier aging system**:
+- **0–30 minutes** → Red border, red timestamp, "ACTIVE" badge — this is happening now
+- **30 min–2 hours** → Yellow border, yellow timestamp, "RECENT" badge — still relevant
+- **2+ hours** → Muted gray text, no badge — stale but historically useful
+
+**Narrative format**: Cards read like community posts — "MaxH spotted a booter at The Cove" or "MaxH got booted at University View" — with avatar initials colored by user's chosen color.
+
+**Real-time**: New sightings from other users appear instantly in the feed via Supabase Realtime subscriptions. Pull-to-refresh is available as fallback.
+
+---
+
+## Step 5.10–5.13 — Avatar Colors, Privacy, and UX Polish
+
+**What we did**: Added customizable avatar colors, anonymous posting, a privacy disclaimer, and complex search in the report modal.
+
+**What got created**:
+
+| File | What It Does |
+|---|---|
+| `src/utils/avatarColors.ts` | 10 curated avatar colors (blue, red, green, amber, purple, pink, cyan, orange, indigo, teal) with a default blue. |
+| `src/screens/ProfileScreen.tsx` | New "Avatar Color" section with a grid of 10 colored circles. Tapping saves to Supabase instantly. Profile avatar updates in real-time. |
+| `supabase/add_avatar_color.sql` | Migration: adds `avatar_color` column to `profiles`. |
+| `supabase/add_report_type.sql` | Migration: adds `report_type` column to `sightings`. |
+| `supabase/add_anonymous_flag.sql` | Migration: adds `is_anonymous` column to `sightings`. |
+| `supabase/fix_profile_insert_policy.sql` | RLS policy allowing users to insert their own profile row. |
+
+**Privacy features**:
+- **Anonymous posting toggle** — per-report switch in the report modal. When on, the sighting shows "Anonymous" with a gray shield icon.
+- **No public profiles** — no way to tap on a username and see their report history.
+- **Privacy disclaimer banner** — blue banner at the top of the feed: "Your reports help the community. Anonymous posting is always available. We never share your identity with property managers or booting companies."
+
+**Complex search in report modal**: Search bar with instant filtering above the complex list so users don't have to scroll through dozens of complexes.
+
+---
+
 ## Status Overview
 
 | Step | Status |
@@ -294,9 +373,28 @@ The `EXPO_PUBLIC_` prefix is an Expo convention that makes these values accessib
 | 3.7 — Park Here quick start flow | Complete |
 | 3.8 — Edge case handling | Complete |
 | 3.9 — Timer styling (color shifts) | Complete |
-| 4.x — Supabase backend & auth | Up next |
-| 5.x — Boot spotter feed | Not started |
-| 6.x — Spotter push notifications | Not started |
+| 4.1 — Supabase project setup | Complete |
+| 4.2 — Supabase client config | Complete |
+| 4.3 — Database tables & schema | Complete |
+| 4.4 — Row Level Security | Complete |
+| 4.5 — Auth flow (sign-up/sign-in) | Complete |
+| 4.6 — Profile tab | Complete |
+| 4.7 — Seed data to Supabase | Complete |
+| 4.8 — Auth end-to-end verification | Complete |
+| 5.1 — Feed screen UI | Complete |
+| 5.2 — Fetch sightings from Supabase | Complete |
+| 5.3 — Report sighting flow | Complete |
+| 5.4 — Photo upload to Supabase Storage | Complete |
+| 5.5 — Supabase Realtime subscriptions | Complete |
+| 5.6 — Pull-to-refresh | Complete |
+| 5.7 — Sighting pins on map | Complete |
+| 5.8 — Feed styling & aging tiers | Complete |
+| 5.9 — Booter last reported banner | Complete |
+| 5.10 — Customizable avatar colors | Complete |
+| 5.11 — Anonymous posting | Complete |
+| 5.12 — Privacy disclaimer | Complete |
+| 5.13 — Complex search in report modal | Complete |
+| 6.x — Spotter push notifications | Up next |
 | 7.x — Heat map | Not started |
 | 8.x — Polish & launch | Not started |
 

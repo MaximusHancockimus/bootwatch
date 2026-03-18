@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import { complexes } from '../data/complexes';
+import { useSavedComplexes } from '../hooks/useSavedComplexes';
 import { AVATAR_COLORS, DEFAULT_AVATAR_COLOR } from '../utils/avatarColors';
 import { colors, fontSize, fontWeight, spacing, borderRadius } from '../theme';
 
@@ -18,6 +19,7 @@ export default function ProfileScreen() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [selectedColor, setSelectedColor] = useState(DEFAULT_AVATAR_COLOR);
   const [saving, setSaving] = useState(false);
+  const { savedIds, toggle: toggleComplex } = useSavedComplexes();
 
   useEffect(() => {
     if (!user) return;
@@ -43,7 +45,6 @@ export default function ProfileScreen() {
   }
 
   const displayName = profile?.display_name ?? user?.email?.split('@')[0] ?? 'User';
-  const savedIds = profile?.saved_complexes ?? [];
   const savedComplexes = complexes.filter((c) => savedIds.includes(c.id));
 
   return (
@@ -73,22 +74,25 @@ export default function ProfileScreen() {
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Saved Complexes</Text>
+        <Text style={styles.sectionTitle}>Followed Complexes</Text>
+        <Text style={styles.sectionSubtitle}>You'll get push alerts when a booter is spotted here</Text>
         {savedComplexes.length === 0 ? (
           <View style={styles.emptyState}>
-            <Ionicons name="bookmark-outline" size={24} color={colors.textSecondary} />
-            <Text style={styles.emptyText}>No saved complexes yet</Text>
+            <Ionicons name="notifications-off-outline" size={24} color={colors.textSecondary} />
+            <Text style={styles.emptyText}>No followed complexes</Text>
             <Text style={styles.emptySubtext}>
-              Save complexes from the Map tab to get boot spotter alerts for those locations.
+              Tap the bell icon on any complex from the Map tab to follow it and get boot spotter alerts.
             </Text>
           </View>
         ) : (
           <View style={styles.savedList}>
             {savedComplexes.map((cx) => (
               <View key={cx.id} style={styles.savedItem}>
-                <Ionicons name="location" size={18} color={colors.primary} />
+                <Ionicons name="notifications" size={18} color={colors.primary} />
                 <Text style={styles.savedItemText}>{cx.name}</Text>
-                <Text style={styles.savedItemMeta}>{cx.visitorTimeLimitMinutes ?? '?'} min</Text>
+                <Pressable onPress={() => toggleComplex(cx.id)} hitSlop={8}>
+                  <Ionicons name="close-circle" size={20} color={colors.textSecondary} />
+                </Pressable>
               </View>
             ))}
           </View>
@@ -157,6 +161,11 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
+    marginBottom: 2,
+  },
+  sectionSubtitle: {
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
     marginBottom: spacing.sm,
   },
   colorGrid: {

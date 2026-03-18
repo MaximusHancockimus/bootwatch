@@ -56,8 +56,11 @@ export default function TimerScreen() {
   const canStart = durationMinutes > 0 && !timer.isRunning;
 
   const handleStart = useCallback(() => {
-    if (canStart) timer.start(durationMinutes);
-  }, [canStart, durationMinutes, timer]);
+    if (canStart) {
+      const complexId = selectedId !== CUSTOM_TIMER_ID ? selectedId ?? undefined : undefined;
+      timer.start(durationMinutes, complexId);
+    }
+  }, [canStart, durationMinutes, selectedId, timer]);
 
   const phaseColor = PHASE_COLORS[timer.phase];
 

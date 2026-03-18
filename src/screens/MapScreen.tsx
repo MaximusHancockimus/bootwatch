@@ -5,6 +5,7 @@ import { useNavigation } from '@react-navigation/native';
 import { complexes } from '../data/complexes';
 import { Complex } from '../types/complex';
 import { useSightings } from '../hooks/useSightings';
+import { useSavedComplexes } from '../hooks/useSavedComplexes';
 import ComplexDetailSheet from '../components/ComplexDetailSheet';
 import RiskBadge from '../components/RiskBadge';
 import { colors, fontSize, fontWeight, spacing, borderRadius } from '../theme';
@@ -24,6 +25,7 @@ export default function MapScreen() {
   const [panelExpanded, setPanelExpanded] = useState(false);
   const navigation = useNavigation<any>();
   const { getLatestSighting } = useSightings();
+  const { isSaved, toggle: toggleSave } = useSavedComplexes();
 
   const filtered = useMemo(
     () => complexes.filter((c) => c.name.toLowerCase().includes(search.toLowerCase())),
@@ -130,6 +132,8 @@ export default function MapScreen() {
               })()
             : null
         }
+        isSaved={selectedComplex ? isSaved(selectedComplex.id) : false}
+        onToggleSave={(c) => toggleSave(c.id)}
       />
     </View>
   );
