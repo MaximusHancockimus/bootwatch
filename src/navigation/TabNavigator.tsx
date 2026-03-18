@@ -4,7 +4,7 @@ import MapScreen from '../screens/MapScreen';
 import TimerScreen from '../screens/TimerScreen';
 import FeedScreen from '../screens/FeedScreen';
 import ProfileScreen from '../screens/ProfileScreen';
-import { colors } from '../theme';
+import { useTheme } from '../context/ThemeContext';
 
 type TabIcon = React.ComponentProps<typeof Ionicons>['name'];
 
@@ -18,6 +18,8 @@ const TAB_CONFIG: Record<string, { icon: TabIcon; iconFocused: TabIcon }> = {
 const Tab = createBottomTabNavigator();
 
 export default function TabNavigator() {
+  const { colors } = useTheme();
+
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({

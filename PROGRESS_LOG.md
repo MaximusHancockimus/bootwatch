@@ -394,9 +394,83 @@ The `EXPO_PUBLIC_` prefix is an Expo convention that makes these values accessib
 | 5.11 — Anonymous posting | Complete |
 | 5.12 — Privacy disclaimer | Complete |
 | 5.13 — Complex search in report modal | Complete |
-| 6.x — Spotter push notifications | Up next |
-| 7.x — Heat map | Not started |
-| 8.x — Polish & launch | Not started |
+| 6.x — Spotter push notifications | Complete |
+| 7.x — Heat map | Complete |
+| 8A — Dark / light mode | Complete |
+| 8B — Onboarding flow | Complete |
+| 8C — Error handling | Complete |
+| 8D — Performance pass | Complete |
+
+---
+
+## Step 8A: Dark / Light Mode
+
+**What was done:**
+- Defined `lightColors` and `darkColors` palettes in `src/theme/index.ts`
+- Created `ThemeContext` (`src/context/ThemeContext.tsx`) with `ThemeProvider`, persisting mode to AsyncStorage
+- Exported `useTheme()` hook returning `{ colors, isDark, mode, setMode }`
+- Refactored ~15 files to use `const { colors } = useTheme()` instead of static `import { colors }`
+- Converted all `StyleSheet.create()` calls to `createStyles(colors)` pattern so styles react to theme changes
+- Added `infoTint` to palette (replacing hardcoded `#EFF6FF`)
+- Updated `app.json` `userInterfaceStyle` to `"automatic"`
+- Added `ThemedStatusBar` component to `App.tsx` for correct status bar style per theme
+
+## Step 8A (cont): Theme Toggle
+
+**What was done:**
+- Added an "Appearance" section to `ProfileScreen` with 3-option selector (Light / Dark / System)
+- Each option shows an icon (sun, moon, phone) and highlights the active choice
+- Selection persists via AsyncStorage
+
+## Step 8B: Onboarding Flow
+
+**What was done:**
+- Created `src/screens/OnboardingScreen.tsx` with 3 horizontal swipeable slides:
+  1. "Welcome to BootWatch" — app identity and tagline
+  2. "How It Works" — 3 feature cards (Map, Timer, Feed)
+  3. "Stronger Together" — community and anonymity
+- Pagination dots and Next/Skip/Get Started buttons
+- Wired into `App.tsx` with `@bootwatch_onboarded` AsyncStorage flag
+- First launch shows onboarding; subsequent launches skip to auth
+
+## Step 8C: Error Handling
+
+**What was done:**
+- Created `src/components/ErrorBoundary.tsx` — class component that catches React runtime crashes, shows recovery UI with retry button
+- Wrapped the entire app in `ErrorBoundary` in `App.tsx`
+- Added `error` state to `useSightings`, `useHeatData`, and `useSavedComplexes` hooks
+- `FeedScreen`: full-screen error state with retry button when sightings fail to load
+- `MapScreen`: red error banner ("Data unavailable — tap to retry") when sightings or heat data fail
+- `ReportSightingModal`: yellow photo warning toast ("Report saved, but photo upload failed") that auto-dismisses after 5 seconds
+
+## Step 8D: Performance Pass
+
+**What was done:**
+- Extracted `SightingCard` as a `React.memo`-wrapped component, preventing re-renders when other feed items change
+- Wrapped `renderSighting` in `useCallback` for FlatList optimization
+- Added 60-second TTL cache to `useHeatData` — skip re-fetch if data is less than 60 seconds old (avoids re-fetching on every map mode toggle)
+
+**New files:**
+- `src/context/ThemeContext.tsx`
+- `src/screens/OnboardingScreen.tsx`
+- `src/components/ErrorBoundary.tsx`
+
+**Modified files:**
+- `src/theme/index.ts` — dual palettes, `AppColors` type
+- `App.tsx` — ThemeProvider, ErrorBoundary, onboarding gate, ThemedStatusBar
+- `app.json` — `userInterfaceStyle: "automatic"`
+- `src/navigation/TabNavigator.tsx` — `useTheme()`
+- `src/utils/risk.ts` — `getRiskConfig()` function
+- `src/screens/AuthScreen.tsx` — `useTheme()` + `createStyles()`
+- `src/screens/FeedScreen.tsx` — `useTheme()`, `createStyles()`, error UI, memoized `SightingCard`
+- `src/screens/TimerScreen.tsx` — `useTheme()` + `createStyles()`
+- `src/screens/MapScreen.tsx` — `useTheme()`, `createStyles()`, error banner
+- `src/screens/ProfileScreen.tsx` — `useTheme()`, `createStyles()`, theme toggle UI
+- `src/components/ComplexDetailSheet.tsx` — `useTheme()` + `createStyles()`
+- `src/components/ReportSightingModal.tsx` — `useTheme()`, `createStyles()`, photo warning
+- `src/hooks/useSightings.ts` — error state
+- `src/hooks/useHeatData.ts` — error state + TTL cache
+- `src/hooks/useSavedComplexes.ts` — error state
 
 ---
 

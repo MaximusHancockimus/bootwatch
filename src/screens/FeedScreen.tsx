@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { ActivityIndicator, FlatList, Image, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSightings } from '../hooks/useSightings';
@@ -6,10 +6,13 @@ import { Sighting } from '../types/sighting';
 import { timeAgo, isWithinHours } from '../utils/time';
 import ReportSightingModal from '../components/ReportSightingModal';
 import { DEFAULT_AVATAR_COLOR } from '../utils/avatarColors';
-import { colors, fontSize, fontWeight, spacing, borderRadius } from '../theme';
+import { fontSize, fontWeight, spacing, borderRadius } from '../theme';
+import { useTheme } from '../context/ThemeContext';
 
 export default function FeedScreen() {
-  const { sightings, loading, refresh } = useSightings();
+  const { colors } = useTheme();
+  const styles = createStyles(colors);
+  const { sightings, loading, error, refresh } = useSightings();
   const [reportVisible, setReportVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -19,68 +22,31 @@ export default function FeedScreen() {
     setRefreshing(false);
   }, [refresh]);
 
-  function renderSighting({ item }: { item: Sighting }) {
-    const isActive = isWithinHours(item.created_at, 0.5);
-    const isRecent = !isActive && isWithinHours(item.created_at, 2);
-    const isStale = !isActive && !isRecent;
-    const name = item.display_name ?? 'Anonymous';
-    const initial = name.charAt(0).toUpperCase();
-
-    const cardStyle = isActive ? styles.cardActive : isRecent ? styles.cardRecent : undefined;
-    const tsStyle = isActive ? styles.timestampActive : isRecent ? styles.timestampRecent : undefined;
-    const userColor = item.avatar_color ?? DEFAULT_AVATAR_COLOR;
-    const isAnon = item.is_anonymous;
-
-    const avatarBg = item.report_type === 'booted' ? colors.danger
-      : isAnon ? '#6B7280'
-      : userColor;
-
-    const avatarIcon = item.report_type === 'booted' ? 'lock-closed'
-      : isAnon ? 'shield-checkmark'
-      : null;
-
-    return (
-      <View style={[styles.card, cardStyle]}>
-        <View style={styles.cardHeader}>
-          <View style={[styles.avatar, { backgroundColor: avatarBg }]}>
-            {avatarIcon ? (
-              <Ionicons name={avatarIcon} size={16} color={colors.textInverse} />
-            ) : (
-              <Text style={styles.avatarText}>{initial}</Text>
-            )}
-          </View>
-          <View style={styles.cardHeaderText}>
-            <Text style={[styles.narrative, isStale && styles.narrativeStale]}>
-              <Text style={styles.narrativeName}>{name}</Text>
-              {item.report_type === 'booted' ? ' got booted at ' : ' spotted a booter at '}
-              <Text style={[styles.narrativeComplex, isStale && styles.narrativeComplexStale]}>{item.complex_name}</Text>
-            </Text>
-            <Text style={[styles.timestamp, tsStyle]}>
-              {timeAgo(item.created_at)}
-            </Text>
-          </View>
-          {isActive && (
-            <View style={styles.activeBadge}>
-              <Text style={styles.activeBadgeText}>ACTIVE</Text>
-            </View>
-          )}
-          {isRecent && (
-            <View style={styles.recentBadge}>
-              <Text style={styles.recentBadgeText}>RECENT</Text>
-            </View>
-          )}
-        </View>
-        {item.photo_url && (
-          <Image source={{ uri: item.photo_url }} style={styles.photo} />
-        )}
-      </View>
-    );
-  }
+  const renderSighting = useCallback(
+    ({ item }: { item: Sighting }) => <SightingCard item={item} styles={styles} colors={colors} />,
+    [styles, colors],
+  );
 
   if (loading && sightings.length === 0) {
     return (
       <View style={styles.centered}>
         <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
+
+  if (error && !loading) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.errorContainer}>
+          <Ionicons name="cloud-offline-outline" size={48} color={colors.danger} />
+          <Text style={styles.errorTitle}>Couldn't load feed</Text>
+          <Text style={styles.errorSubtitle}>{error}</Text>
+          <Pressable style={styles.retryButton} onPress={refresh}>
+            <Ionicons name="refresh" size={18} color={colors.textInverse} />
+            <Text style={styles.retryText}>Retry</Text>
+          </Pressable>
+        </View>
       </View>
     );
   }
@@ -126,7 +92,75 @@ export default function FeedScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const SightingCard = React.memo(function SightingCard({
+  item,
+  styles,
+  colors,
+}: {
+  item: Sighting;
+  styles: ReturnType<typeof createStyles>;
+  colors: any;
+}) {
+  const isActive = isWithinHours(item.created_at, 0.5);
+  const isRecent = !isActive && isWithinHours(item.created_at, 2);
+  const isStale = !isActive && !isRecent;
+  const name = item.display_name ?? 'Anonymous';
+  const initial = name.charAt(0).toUpperCase();
+
+  const cardStyle = isActive ? styles.cardActive : isRecent ? styles.cardRecent : undefined;
+  const tsStyle = isActive ? styles.timestampActive : isRecent ? styles.timestampRecent : undefined;
+  const userColor = item.avatar_color ?? DEFAULT_AVATAR_COLOR;
+  const isAnon = item.is_anonymous;
+
+  const avatarBg = item.report_type === 'booted' ? colors.danger
+    : isAnon ? colors.neutral
+    : userColor;
+
+  const avatarIcon: React.ComponentProps<typeof Ionicons>['name'] | null =
+    item.report_type === 'booted' ? 'lock-closed'
+    : isAnon ? 'shield-checkmark'
+    : null;
+
+  return (
+    <View style={[styles.card, cardStyle]}>
+      <View style={styles.cardHeader}>
+        <View style={[styles.avatar, { backgroundColor: avatarBg }]}>
+          {avatarIcon ? (
+            <Ionicons name={avatarIcon} size={16} color={colors.textInverse} />
+          ) : (
+            <Text style={styles.avatarText}>{initial}</Text>
+          )}
+        </View>
+        <View style={styles.cardHeaderText}>
+          <Text style={[styles.narrative, isStale && styles.narrativeStale]}>
+            <Text style={styles.narrativeName}>{name}</Text>
+            {item.report_type === 'booted' ? ' got booted at ' : ' spotted a booter at '}
+            <Text style={[styles.narrativeComplex, isStale && styles.narrativeComplexStale]}>{item.complex_name}</Text>
+          </Text>
+          <Text style={[styles.timestamp, tsStyle]}>
+            {timeAgo(item.created_at)}
+          </Text>
+        </View>
+        {isActive && (
+          <View style={styles.activeBadge}>
+            <Text style={styles.activeBadgeText}>ACTIVE</Text>
+          </View>
+        )}
+        {isRecent && (
+          <View style={styles.recentBadge}>
+            <Text style={styles.recentBadgeText}>RECENT</Text>
+          </View>
+        )}
+      </View>
+      {item.photo_url && (
+        <Image source={{ uri: item.photo_url }} style={styles.photo} />
+      )}
+    </View>
+  );
+});
+
+function createStyles(colors: any) {
+  return StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.surface,
@@ -145,7 +179,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: spacing.sm,
-    backgroundColor: '#EFF6FF',
+    backgroundColor: colors.infoTint,
     borderRadius: borderRadius.md,
     padding: spacing.md,
     marginBottom: spacing.xs,
@@ -289,4 +323,37 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 8,
   },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: spacing.xl,
+    gap: spacing.md,
+  },
+  errorTitle: {
+    fontSize: fontSize.xl,
+    fontWeight: fontWeight.bold,
+    color: colors.text,
+  },
+  errorSubtitle: {
+    fontSize: fontSize.md,
+    color: colors.textSecondary,
+    textAlign: 'center',
+  },
+  retryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.primary,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    borderRadius: borderRadius.md,
+    marginTop: spacing.sm,
+  },
+  retryText: {
+    color: colors.textInverse,
+    fontSize: fontSize.md,
+    fontWeight: fontWeight.semibold,
+  },
 });
+}

@@ -132,10 +132,10 @@ Layer community report data onto the map as a risk visualization. This gets more
 
 Final pass before putting the app in real users' hands.
 
-- [ ] **8.1** — Design and build an onboarding flow (2-3 screens): what BootWatch does, request notification permissions, pick your home complex
-- [ ] **8.2** — Add an app icon and splash screen
-- [ ] **8.3** — Handle error states gracefully: no internet, location denied, empty feeds, failed uploads
-- [ ] **8.4** — Performance pass: optimize map rendering, lazy-load feed images, cache complex data
+- [x] **8A** — Dark/Light mode: define dual palettes (`lightColors`/`darkColors`), create `ThemeContext` + `useTheme()` hook, refactor ~15 files, add Light/Dark/System toggle in Profile
+- [x] **8B** — 3-screen onboarding flow with AsyncStorage gate (Welcome, How It Works, Get Started)
+- [x] **8C** — Error handling: `ErrorBoundary` wrapping app, error states in `useSightings`/`useHeatData`/`useSavedComplexes`, retry UI on Feed & Map, photo upload failure warning
+- [x] **8D** — Performance pass: memoized `SightingCard` with `React.memo`, `useCallback` for render items, TTL cache on heat data (60s)
 - [ ] **8.5** — Write App Store / Google Play listing copy and screenshots
 - [ ] **8.6** — Configure EAS Build for production builds
 - [ ] **8.7** — Beta test with 10-20 friends, collect feedback, fix critical bugs
@@ -160,4 +160,4 @@ Final pass before putting the app in real users' hands.
 
 ---
 
-*Last updated: March 9, 2026 — Steps 1-5 complete*
+*Last updated: March 9, 2026 — Steps 1-8D complete*

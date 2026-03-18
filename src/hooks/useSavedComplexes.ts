@@ -6,6 +6,7 @@ export function useSavedComplexes() {
   const { user } = useAuth();
   const [savedIds, setSavedIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) { setSavedIds([]); setLoading(false); return; }
@@ -15,7 +16,8 @@ export function useSavedComplexes() {
       .select('saved_complexes')
       .eq('id', user.id)
       .single()
-      .then(({ data }) => {
+      .then(({ data, error: dbError }) => {
+        if (dbError) { setError('Failed to load saved complexes'); }
         setSavedIds(data?.saved_complexes ?? []);
         setLoading(false);
       });
