@@ -9,7 +9,8 @@ import { useSavedComplexes } from '../hooks/useSavedComplexes';
 import { useHeatData, getHeatLevel, HEAT_COLORS, HEAT_LABELS } from '../hooks/useHeatData';
 import ComplexDetailSheet from '../components/ComplexDetailSheet';
 import RiskBadge from '../components/RiskBadge';
-import { colors, fontSize, fontWeight, spacing, borderRadius } from '../theme';
+import { fontSize, fontWeight, spacing, borderRadius } from '../theme';
+import { useTheme } from '../context/ThemeContext';
 
 let NativeMap: any = null;
 let WebMap: any = null;
@@ -22,15 +23,16 @@ if (Platform.OS === 'web') {
 type MapMode = 'complexes' | 'heatmap';
 
 export default function MapScreen() {
+  const { colors } = useTheme();
   const [search, setSearch] = useState('');
   const [selectedComplex, setSelectedComplex] = useState<Complex | null>(null);
   const [sheetVisible, setSheetVisible] = useState(false);
   const [panelExpanded, setPanelExpanded] = useState(false);
   const [mapMode, setMapMode] = useState<MapMode>('complexes');
   const navigation = useNavigation<any>();
-  const { getLatestSighting } = useSightings();
+  const { getLatestSighting, error: sightingsError, refresh: refreshSightings } = useSightings();
   const { isSaved, toggle: toggleSave } = useSavedComplexes();
-  const { getEntry } = useHeatData();
+  const { getEntry, error: heatError, refresh: refreshHeat } = useHeatData();
 
   const filtered = useMemo(
     () => complexes.filter((c) => c.name.toLowerCase().includes(search.toLowerCase())),
@@ -61,6 +63,8 @@ export default function MapScreen() {
     [navigation],
   );
 
+  const styles = createStyles(colors);
+
   return (
     <View style={styles.container}>
       {/* Map fills the screen */}
@@ -71,6 +75,16 @@ export default function MapScreen() {
           <NativeMap complexes={filtered} onMarkerPress={handleMarkerPress} colorOverrides={heatColorOverrides} />
         ) : null}
       </View>
+
+      {(sightingsError || heatError) && (
+        <Pressable
+          style={styles.errorBanner}
+          onPress={() => { refreshSightings(); refreshHeat(true); }}
+        >
+          <Ionicons name="cloud-offline-outline" size={16} color={colors.textInverse} />
+          <Text style={styles.errorBannerText}>Data unavailable — tap to retry</Text>
+        </Pressable>
+      )}
 
       {/* Search bar + mode toggle floating over map */}
       <View style={styles.searchOverlay}>
@@ -198,7 +212,8 @@ export default function MapScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: any) {
+  return StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
@@ -420,4 +435,24 @@ const styles = StyleSheet.create({
     fontSize: fontSize.xs,
     color: colors.textSecondary,
   },
+  errorBanner: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.danger,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+  },
+  errorBannerText: {
+    color: colors.textInverse,
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.medium,
+  },
 });
+}

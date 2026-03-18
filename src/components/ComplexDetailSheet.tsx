@@ -2,7 +2,8 @@ import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Complex } from '../types/complex';
 import RiskBadge from './RiskBadge';
-import { colors, fontSize, fontWeight, spacing, borderRadius } from '../theme';
+import { fontSize, fontWeight, spacing, borderRadius } from '../theme';
+import { useTheme } from '../context/ThemeContext';
 
 interface Props {
   complex: Complex | null;
@@ -27,6 +28,9 @@ function formatTimeAgo(date: Date): string {
 }
 
 export default function ComplexDetailSheet({ complex, visible, onClose, onParkHere, lastSightingAt, isSaved, onToggleSave, sightingCount }: Props) {
+  const { colors } = useTheme();
+  const styles = createStyles(colors);
+
   if (!complex) return null;
 
   return (
@@ -70,16 +74,22 @@ export default function ComplexDetailSheet({ complex, visible, onClose, onParkHe
               icon="time-outline"
               label="Visitor Limit"
               value={complex.visitorTimeLimitMinutes ? `${complex.visitorTimeLimitMinutes} min` : 'Unknown'}
+              styles={styles}
+              colors={colors}
             />
             <InfoRow
               icon="car-outline"
               label="Boot Company"
               value={complex.bootingCompany ?? 'None reported'}
+              styles={styles}
+              colors={colors}
             />
             <InfoRow
               icon="information-circle-outline"
               label="Signage"
               value={complex.signageQuality.charAt(0).toUpperCase() + complex.signageQuality.slice(1)}
+              styles={styles}
+              colors={colors}
             />
           </View>
 
@@ -124,7 +134,7 @@ export default function ComplexDetailSheet({ complex, visible, onClose, onParkHe
   );
 }
 
-function InfoRow({ icon, label, value }: { icon: React.ComponentProps<typeof Ionicons>['name']; label: string; value: string }) {
+function InfoRow({ icon, label, value, styles, colors }: { icon: React.ComponentProps<typeof Ionicons>['name']; label: string; value: string; styles: Record<string, object>; colors: import('../theme').AppColors }) {
   return (
     <View style={styles.infoRow}>
       <Ionicons name={icon} size={18} color={colors.textSecondary} />
@@ -136,7 +146,8 @@ function InfoRow({ icon, label, value }: { icon: React.ComponentProps<typeof Ion
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: import('../theme').AppColors) {
+  return StyleSheet.create({
   overlay: {
     flex: 1,
     justifyContent: 'flex-end',
@@ -243,7 +254,7 @@ const styles = StyleSheet.create({
   },
   followRowActive: {
     borderColor: colors.primary,
-    backgroundColor: '#EFF6FF',
+    backgroundColor: colors.infoTint,
   },
   followTextContainer: {
     flex: 1,
@@ -276,3 +287,4 @@ const styles = StyleSheet.create({
     fontWeight: fontWeight.semibold,
   },
 });
+}

@@ -5,15 +5,8 @@ import { useRoute } from '@react-navigation/native';
 import { complexes, CUSTOM_TIMER_ID, getComplexById } from '../data/complexes';
 import { useParkingTimer, TimerPhase } from '../hooks/useParkingTimer';
 import RiskBadge from '../components/RiskBadge';
-import { colors, fontSize, fontWeight, spacing, borderRadius } from '../theme';
-
-const PHASE_COLORS: Record<TimerPhase, string> = {
-  idle: colors.primary,
-  running: colors.safe,
-  warning: colors.warning,
-  critical: colors.danger,
-  expired: colors.danger,
-};
+import { fontSize, fontWeight, spacing, borderRadius } from '../theme';
+import { useTheme } from '../context/ThemeContext';
 
 function formatTime(seconds: number): string {
   const h = Math.floor(seconds / 3600);
@@ -24,8 +17,17 @@ function formatTime(seconds: number): string {
 }
 
 export default function TimerScreen() {
+  const { colors } = useTheme();
   const route = useRoute<any>();
   const timer = useParkingTimer();
+
+  const PHASE_COLORS: Record<TimerPhase, string> = {
+    idle: colors.primary,
+    running: colors.safe,
+    warning: colors.warning,
+    critical: colors.danger,
+    expired: colors.danger,
+  };
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [customMinutes, setCustomMinutes] = useState('');
@@ -63,6 +65,8 @@ export default function TimerScreen() {
   }, [canStart, durationMinutes, selectedId, timer]);
 
   const phaseColor = PHASE_COLORS[timer.phase];
+
+  const styles = createStyles(colors);
 
   // ─── Active Timer View ───
   if (timer.isRunning || timer.phase === 'expired') {
@@ -213,7 +217,8 @@ export default function TimerScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: any) {
+  return StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
@@ -315,7 +320,7 @@ const styles = StyleSheet.create({
   },
   selectorItemActive: {
     borderColor: colors.primary,
-    backgroundColor: '#EFF6FF',
+    backgroundColor: colors.infoTint,
   },
   selectorItemContent: {
     flex: 1,
@@ -440,3 +445,4 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 });
+}

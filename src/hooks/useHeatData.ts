@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 
 export interface HeatEntry {
@@ -34,48 +34,59 @@ export const HEAT_LABELS: Record<HeatLevel, string> = {
   none: 'No recent reports',
 };
 
+const TTL_MS = 60_000; // Cache for 60 seconds
+
 export function useHeatData() {
   const [heatMap, setHeatMap] = useState<Map<string, HeatEntry>>(new Map());
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const lastFetchRef = useRef(0);
 
-  const fetch30DaySightings = useCallback(async () => {
+  const fetch30DaySightings = useCallback(async (force = false) => {
+    if (!force && Date.now() - lastFetchRef.current < TTL_MS) return;
+
     setLoading(true);
-    const since = new Date(Date.now() - THIRTY_DAYS_MS).toISOString();
+    setError(null);
+    try {
+      const since = new Date(Date.now() - THIRTY_DAYS_MS).toISOString();
+      const { data, error: dbError } = await supabase
+        .from('sightings')
+        .select('complex_id, created_at')
+        .gte('created_at', since)
+        .order('created_at', { ascending: false });
 
-    const { data } = await supabase
-      .from('sightings')
-      .select('complex_id, created_at')
-      .gte('created_at', since)
-      .order('created_at', { ascending: false });
+      if (dbError) throw dbError;
 
-    const map = new Map<string, HeatEntry>();
-
-    if (data) {
-      for (const row of data) {
-        const existing = map.get(row.complex_id);
-        if (existing) {
-          existing.count += 1;
-        } else {
-          map.set(row.complex_id, {
-            complexId: row.complex_id,
-            count: 1,
-            lastSeen: row.created_at,
-          });
+      const map = new Map<string, HeatEntry>();
+      if (data) {
+        for (const row of data) {
+          const existing = map.get(row.complex_id);
+          if (existing) {
+            existing.count += 1;
+          } else {
+            map.set(row.complex_id, {
+              complexId: row.complex_id,
+              count: 1,
+              lastSeen: row.created_at,
+            });
+          }
         }
       }
+      setHeatMap(map);
+      lastFetchRef.current = Date.now();
+    } catch {
+      setError('Failed to load heat map data');
     }
-
-    setHeatMap(map);
     setLoading(false);
   }, []);
 
   useEffect(() => {
-    fetch30DaySightings();
+    fetch30DaySightings(true);
   }, [fetch30DaySightings]);
 
   function getEntry(complexId: string): HeatEntry {
     return heatMap.get(complexId) ?? { complexId, count: 0, lastSeen: null };
   }
 
-  return { heatMap, loading, refresh: fetch30DaySightings, getEntry };
+  return { heatMap, loading, error, refresh: fetch30DaySightings, getEntry };
 }

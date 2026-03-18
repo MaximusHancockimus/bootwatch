@@ -42,18 +42,26 @@ function enrichSighting(row: any, profileMap: Map<string, ProfileInfo>): Sightin
 export function useSightings() {
   const [sightings, setSightings] = useState<Sighting[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchSightings = useCallback(async () => {
     setLoading(true);
-    const { data } = await supabase
-      .from('sightings')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(50);
+    setError(null);
+    try {
+      const { data, error: dbError } = await supabase
+        .from('sightings')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(50);
 
-    if (data) {
-      const profileMap = await fetchProfiles(data.map((r) => r.user_id));
-      setSightings(data.map((row) => enrichSighting(row, profileMap)));
+      if (dbError) throw dbError;
+
+      if (data) {
+        const profileMap = await fetchProfiles(data.map((r) => r.user_id));
+        setSightings(data.map((row) => enrichSighting(row, profileMap)));
+      }
+    } catch {
+      setError('Failed to load sightings');
     }
     setLoading(false);
   }, []);
@@ -77,5 +85,5 @@ export function useSightings() {
     return sightings.find((s) => s.complex_id === complexId);
   }
 
-  return { sightings, loading, refresh: fetchSightings, getLatestSighting };
+  return { sightings, loading, error, refresh: fetchSightings, getLatestSighting };
 }

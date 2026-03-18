@@ -7,7 +7,8 @@ import { useAuth } from '../context/AuthContext';
 import { complexes } from '../data/complexes';
 import { ReportType } from '../types/sighting';
 import { RISK_CONFIG } from '../utils/risk';
-import { colors, fontSize, fontWeight, spacing, borderRadius } from '../theme';
+import { fontSize, fontWeight, spacing, borderRadius } from '../theme';
+import { useTheme } from '../context/ThemeContext';
 
 interface Props {
   visible: boolean;
@@ -25,6 +26,8 @@ const TIME_OPTIONS = [
 
 export default function ReportSightingModal({ visible, onClose, onSuccess }: Props) {
   const { user } = useAuth();
+  const { colors } = useTheme();
+  const styles = createStyles(colors);
   const [reportType, setReportType] = useState<ReportType>('spotter');
   const [selectedComplexId, setSelectedComplexId] = useState<string | null>(null);
   const [timeOffset, setTimeOffset] = useState(0);
@@ -32,6 +35,7 @@ export default function ReportSightingModal({ visible, onClose, onSuccess }: Pro
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [photoWarning, setPhotoWarning] = useState(false);
 
   async function pickPhoto() {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -96,6 +100,7 @@ export default function ReportSightingModal({ visible, onClose, onSuccess }: Pro
       if (Platform.OS === 'web') alert('Failed to submit report. Please try again.');
       else Alert.alert('Error', 'Failed to submit report. Please try again.');
     } else {
+      const hadPhotoFailure = !!photoUri && !photoUrl;
       setReportType('spotter');
       setSelectedComplexId(null);
       setTimeOffset(0);
@@ -103,6 +108,10 @@ export default function ReportSightingModal({ visible, onClose, onSuccess }: Pro
       setComplexSearch('');
       setPhotoUri(null);
       onSuccess();
+      if (hadPhotoFailure) {
+        setPhotoWarning(true);
+        setTimeout(() => setPhotoWarning(false), 5000);
+      }
       onClose();
     }
   }
@@ -122,6 +131,16 @@ export default function ReportSightingModal({ visible, onClose, onSuccess }: Pro
     : complexes;
 
   return (
+    <>
+    {photoWarning && (
+      <View style={styles.photoWarning}>
+        <Ionicons name="warning-outline" size={18} color={colors.warning} />
+        <Text style={styles.photoWarningText}>Report saved, but photo upload failed</Text>
+        <Pressable onPress={() => setPhotoWarning(false)} hitSlop={8}>
+          <Ionicons name="close" size={18} color={colors.textSecondary} />
+        </Pressable>
+      </View>
+    )}
     <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose}>
       <Pressable style={styles.overlay} onPress={handleClose}>
         <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
@@ -243,10 +262,12 @@ export default function ReportSightingModal({ visible, onClose, onSuccess }: Pro
         </Pressable>
       </Pressable>
     </Modal>
+    </>
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: import('../theme').AppColors) {
+  return StyleSheet.create({
   overlay: {
     flex: 1,
     justifyContent: 'flex-end',
@@ -316,7 +337,7 @@ const styles = StyleSheet.create({
   },
   itemSelected: {
     borderColor: colors.primary,
-    backgroundColor: '#EFF6FF',
+    backgroundColor: colors.infoTint,
   },
   dot: {
     width: 10,
@@ -388,7 +409,7 @@ const styles = StyleSheet.create({
   },
   timeChipSelected: {
     borderColor: colors.primary,
-    backgroundColor: '#EFF6FF',
+    backgroundColor: colors.infoTint,
   },
   timeChipText: {
     fontSize: fontSize.sm,
@@ -486,4 +507,27 @@ const styles = StyleSheet.create({
     fontSize: fontSize.lg,
     fontWeight: fontWeight.semibold,
   },
+  photoWarning: {
+    position: 'absolute',
+    bottom: 80,
+    left: spacing.md,
+    right: spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.warningLight,
+    borderWidth: 1,
+    borderColor: colors.warning,
+    borderRadius: borderRadius.md,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    zIndex: 100,
+  },
+  photoWarningText: {
+    flex: 1,
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.medium,
+    color: colors.text,
+  },
 });
+}

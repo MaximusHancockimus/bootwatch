@@ -6,7 +6,8 @@ import { supabase } from '../lib/supabase';
 import { complexes } from '../data/complexes';
 import { useSavedComplexes } from '../hooks/useSavedComplexes';
 import { AVATAR_COLORS, DEFAULT_AVATAR_COLOR } from '../utils/avatarColors';
-import { colors, fontSize, fontWeight, spacing, borderRadius } from '../theme';
+import { fontSize, fontWeight, spacing, borderRadius } from '../theme';
+import { useTheme } from '../context/ThemeContext';
 
 interface Profile {
   display_name: string | null;
@@ -15,6 +16,7 @@ interface Profile {
 }
 
 export default function ProfileScreen() {
+  const { colors, mode, setMode } = useTheme();
   const { user, signOut } = useAuth();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [selectedColor, setSelectedColor] = useState(DEFAULT_AVATAR_COLOR);
@@ -47,6 +49,8 @@ export default function ProfileScreen() {
   const displayName = profile?.display_name ?? user?.email?.split('@')[0] ?? 'User';
   const savedComplexes = complexes.filter((c) => savedIds.includes(c.id));
 
+  const styles = createStyles(colors);
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.header}>
@@ -71,6 +75,28 @@ export default function ProfileScreen() {
           ))}
         </View>
         {saving && <Text style={styles.savingText}>Saving...</Text>}
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Appearance</Text>
+        <View style={styles.themeToggle}>
+          {(['light', 'dark', 'system'] as const).map((opt) => (
+            <Pressable
+              key={opt}
+              style={[styles.themeOption, mode === opt && styles.themeOptionActive]}
+              onPress={() => setMode(opt)}
+            >
+              <Ionicons
+                name={opt === 'light' ? 'sunny-outline' : opt === 'dark' ? 'moon-outline' : 'phone-portrait-outline'}
+                size={18}
+                color={mode === opt ? colors.primary : colors.textSecondary}
+              />
+              <Text style={[styles.themeOptionText, mode === opt && styles.themeOptionTextActive]}>
+                {opt.charAt(0).toUpperCase() + opt.slice(1)}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
       </View>
 
       <View style={styles.section}>
@@ -112,7 +138,8 @@ export default function ProfileScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: any) {
+  return StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.surface,
@@ -162,6 +189,36 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: 2,
+  },
+  themeToggle: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+  },
+  themeOption: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  themeOptionActive: {
+    borderColor: colors.primary,
+    backgroundColor: colors.infoTint,
+  },
+  themeOptionText: {
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.medium,
+    color: colors.textSecondary,
+  },
+  themeOptionTextActive: {
+    color: colors.primary,
+    fontWeight: fontWeight.semibold,
   },
   sectionSubtitle: {
     fontSize: fontSize.xs,
@@ -243,3 +300,4 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.md,
   },
 });
+}
