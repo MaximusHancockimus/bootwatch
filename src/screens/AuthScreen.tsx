@@ -5,6 +5,166 @@ import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { fontSize, fontWeight, spacing, borderRadius, type AppColors } from '../theme';
 
+export default function AuthScreen() {
+  const { colors } = useTheme();
+  const { signIn, signUp, signInWithGoogle, signInWithApple } = useAuth();
+  const styles = createStyles(colors);
+  const [isSignUp, setIsSignUp] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [displayName, setDisplayName] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [oauthLoading, setOauthLoading] = useState<'google' | 'apple' | null>(null);
+
+  async function handleSubmit() {
+    setError(null);
+    if (!email.trim() || !password.trim()) {
+      setError('Email and password are required.');
+      return;
+    }
+    if (isSignUp && !displayName.trim()) {
+      setError('Display name is required.');
+      return;
+    }
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters.');
+      return;
+    }
+
+    setLoading(true);
+    if (isSignUp) {
+      const { error } = await signUp(email.trim(), password, displayName.trim());
+      if (error) setError(error);
+    } else {
+      const { error } = await signIn(email.trim(), password);
+      if (error) setError(error);
+    }
+    setLoading(false);
+  }
+
+  async function handleGoogle() {
+    setError(null);
+    setOauthLoading('google');
+    const { error } = await signInWithGoogle();
+    if (error) setError(error);
+    setOauthLoading(null);
+  }
+
+  async function handleApple() {
+    setError(null);
+    setOauthLoading('apple');
+    const { error } = await signInWithApple();
+    if (error) setError(error);
+    setOauthLoading(null);
+  }
+
+  const anyLoading = loading || oauthLoading !== null;
+
+  return (
+    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <View style={styles.card}>
+        <Ionicons name="shield-checkmark" size={48} color={colors.primary} />
+        <Text style={styles.title}>BootWatch</Text>
+        <Text style={styles.subtitle}>
+          {isSignUp ? 'Create an account to report sightings' : 'Sign in to your account'}
+        </Text>
+
+        {/* OAuth buttons */}
+        <Pressable
+          style={styles.oauthButton}
+          onPress={handleGoogle}
+          disabled={anyLoading}
+        >
+          {oauthLoading === 'google' ? (
+            <ActivityIndicator size="small" color={colors.text} />
+          ) : (
+            <>
+              <Ionicons name="logo-google" size={20} color={colors.text} />
+              <Text style={styles.oauthButtonText}>Continue with Google</Text>
+            </>
+          )}
+        </Pressable>
+
+        {Platform.OS === 'ios' && (
+          <Pressable
+            style={[styles.oauthButton, styles.appleButton]}
+            onPress={handleApple}
+            disabled={anyLoading}
+          >
+            {oauthLoading === 'apple' ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <>
+                <Ionicons name="logo-apple" size={20} color="#FFFFFF" />
+                <Text style={[styles.oauthButtonText, styles.appleButtonText]}>Continue with Apple</Text>
+              </>
+            )}
+          </Pressable>
+        )}
+
+        <View style={styles.divider}>
+          <View style={styles.dividerLine} />
+          <Text style={styles.dividerText}>or</Text>
+          <View style={styles.dividerLine} />
+        </View>
+
+        {/* Email/password form */}
+        {isSignUp && (
+          <TextInput
+            style={styles.input}
+            placeholder="Display name"
+            placeholderTextColor={colors.textSecondary}
+            value={displayName}
+            onChangeText={setDisplayName}
+            autoCapitalize="words"
+          />
+        )}
+
+        <TextInput
+          style={styles.input}
+          placeholder="Email"
+          placeholderTextColor={colors.textSecondary}
+          value={email}
+          onChangeText={setEmail}
+          keyboardType="email-address"
+          autoCapitalize="none"
+        />
+
+        <TextInput
+          style={styles.input}
+          placeholder="Password"
+          placeholderTextColor={colors.textSecondary}
+          value={password}
+          onChangeText={setPassword}
+          secureTextEntry
+        />
+
+        {error && (
+          <View style={styles.errorBox}>
+            <Ionicons name="alert-circle" size={16} color={colors.danger} />
+            <Text style={styles.errorText}>{error}</Text>
+          </View>
+        )}
+
+        <Pressable style={styles.primaryButton} onPress={handleSubmit} disabled={anyLoading}>
+          {loading ? (
+            <ActivityIndicator color={colors.textInverse} />
+          ) : (
+            <Text style={styles.primaryButtonText}>{isSignUp ? 'Create Account' : 'Sign In'}</Text>
+          )}
+        </Pressable>
+
+        <Pressable style={styles.linkButton} onPress={() => { setIsSignUp(!isSignUp); setError(null); }}>
+          <Text style={styles.linkText}>
+            {isSignUp ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
+          </Text>
+        </Pressable>
+      </View>
+    </KeyboardAvoidingView>
+  );
+}
+
 function createStyles(colors: AppColors) {
   return StyleSheet.create({
     container: {
@@ -35,6 +195,45 @@ function createStyles(colors: AppColors) {
       color: colors.textSecondary,
       textAlign: 'center',
       marginBottom: spacing.sm,
+    },
+    oauthButton: {
+      width: '100%',
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: spacing.sm,
+      paddingVertical: spacing.md,
+      borderRadius: borderRadius.md,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+    },
+    oauthButtonText: {
+      fontSize: fontSize.md,
+      fontWeight: fontWeight.medium,
+      color: colors.text,
+    },
+    appleButton: {
+      backgroundColor: '#000000',
+      borderColor: '#000000',
+    },
+    appleButtonText: {
+      color: '#FFFFFF',
+    },
+    divider: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      width: '100%',
+      gap: spacing.md,
+    },
+    dividerLine: {
+      flex: 1,
+      height: 1,
+      backgroundColor: colors.border,
+    },
+    dividerText: {
+      fontSize: fontSize.sm,
+      color: colors.textSecondary,
     },
     input: {
       width: '100%',
@@ -82,124 +281,4 @@ function createStyles(colors: AppColors) {
       fontWeight: fontWeight.medium,
     },
   });
-}
-
-export default function AuthScreen() {
-  const { colors } = useTheme();
-  const { signIn, signUp } = useAuth();
-  const styles = createStyles(colors);
-  const [isSignUp, setIsSignUp] = useState(false);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [displayName, setDisplayName] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [confirmSent, setConfirmSent] = useState(false);
-
-  async function handleSubmit() {
-    setError(null);
-    if (!email.trim() || !password.trim()) {
-      setError('Email and password are required.');
-      return;
-    }
-    if (isSignUp && !displayName.trim()) {
-      setError('Display name is required.');
-      return;
-    }
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters.');
-      return;
-    }
-
-    setLoading(true);
-    if (isSignUp) {
-      const { error } = await signUp(email.trim(), password, displayName.trim());
-      if (error) setError(error);
-      else setConfirmSent(true);
-    } else {
-      const { error } = await signIn(email.trim(), password);
-      if (error) setError(error);
-    }
-    setLoading(false);
-  }
-
-  if (confirmSent) {
-    return (
-      <View style={styles.container}>
-        <View style={styles.card}>
-          <Ionicons name="mail-outline" size={48} color={colors.primary} />
-          <Text style={styles.title}>Check Your Email</Text>
-          <Text style={styles.subtitle}>
-            We sent a confirmation link to {email}. Tap the link to activate your account, then come back and sign in.
-          </Text>
-          <Pressable style={styles.linkButton} onPress={() => { setConfirmSent(false); setIsSignUp(false); }}>
-            <Text style={styles.linkText}>Back to Sign In</Text>
-          </Pressable>
-        </View>
-      </View>
-    );
-  }
-
-  return (
-    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <View style={styles.card}>
-        <Ionicons name="shield-checkmark" size={48} color={colors.primary} />
-        <Text style={styles.title}>BootWatch</Text>
-        <Text style={styles.subtitle}>
-          {isSignUp ? 'Create an account to report sightings' : 'Sign in to your account'}
-        </Text>
-
-        {isSignUp && (
-          <TextInput
-            style={styles.input}
-            placeholder="Display name"
-            placeholderTextColor={colors.textSecondary}
-            value={displayName}
-            onChangeText={setDisplayName}
-            autoCapitalize="words"
-          />
-        )}
-
-        <TextInput
-          style={styles.input}
-          placeholder="Email"
-          placeholderTextColor={colors.textSecondary}
-          value={email}
-          onChangeText={setEmail}
-          keyboardType="email-address"
-          autoCapitalize="none"
-        />
-
-        <TextInput
-          style={styles.input}
-          placeholder="Password"
-          placeholderTextColor={colors.textSecondary}
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-        />
-
-        {error && (
-          <View style={styles.errorBox}>
-            <Ionicons name="alert-circle" size={16} color={colors.danger} />
-            <Text style={styles.errorText}>{error}</Text>
-          </View>
-        )}
-
-        <Pressable style={styles.primaryButton} onPress={handleSubmit} disabled={loading}>
-          {loading ? (
-            <ActivityIndicator color={colors.textInverse} />
-          ) : (
-            <Text style={styles.primaryButtonText}>{isSignUp ? 'Create Account' : 'Sign In'}</Text>
-          )}
-        </Pressable>
-
-        <Pressable style={styles.linkButton} onPress={() => { setIsSignUp(!isSignUp); setError(null); }}>
-          <Text style={styles.linkText}>
-            {isSignUp ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
-          </Text>
-        </Pressable>
-      </View>
-    </KeyboardAvoidingView>
-  );
 }

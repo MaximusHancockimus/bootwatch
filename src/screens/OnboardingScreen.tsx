@@ -60,9 +60,15 @@ export default function OnboardingScreen({ onComplete }: Props) {
     }
   }).current;
 
+  const getItemLayout = (_: any, index: number) => ({
+    length: width,
+    offset: width * index,
+    index,
+  });
+
   function handleNext() {
     if (currentIndex < SLIDES.length - 1) {
-      flatListRef.current?.scrollToIndex({ index: currentIndex + 1 });
+      flatListRef.current?.scrollToIndex({ index: currentIndex + 1, animated: true });
     } else {
       onComplete();
     }
@@ -110,6 +116,7 @@ export default function OnboardingScreen({ onComplete }: Props) {
         showsHorizontalScrollIndicator={false}
         onViewableItemsChanged={onViewableItemsChanged}
         viewabilityConfig={{ viewAreaCoveragePercentThreshold: 50 }}
+        getItemLayout={getItemLayout}
       />
 
       <View style={styles.footer}>

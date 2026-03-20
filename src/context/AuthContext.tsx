@@ -1,6 +1,12 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { Platform } from 'react-native';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
+import * as WebBrowser from 'expo-web-browser';
+import * as AuthSession from 'expo-auth-session';
+import * as AppleAuthentication from 'expo-apple-authentication';
+
+WebBrowser.maybeCompleteAuthSession();
 
 interface AuthState {
   session: Session | null;
@@ -8,6 +14,8 @@ interface AuthState {
   loading: boolean;
   signUp: (email: string, password: string, displayName: string) => Promise<{ error: string | null }>;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
+  signInWithGoogle: () => Promise<{ error: string | null }>;
+  signInWithApple: () => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
 }
 
@@ -20,7 +28,10 @@ async function ensureProfile(user: User) {
     .eq('id', user.id)
     .single();
 
-  const metaName = user.user_metadata?.display_name;
+  const metaName =
+    user.user_metadata?.display_name ||
+    user.user_metadata?.full_name ||
+    user.user_metadata?.name;
   const fallback = metaName || user.email?.split('@')[0] || 'User';
 
   if (!data) {
@@ -63,12 +74,86 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error: error?.message ?? null };
   }
 
+  async function signInWithGoogle() {
+    try {
+      const redirectUrl = AuthSession.makeRedirectUri();
+
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: redirectUrl,
+          skipBrowserRedirect: true,
+        },
+      });
+
+      if (error || !data.url) return { error: error?.message ?? 'Failed to start Google sign-in' };
+
+      const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl);
+
+      if (result.type !== 'success') return { error: null };
+
+      const url = new URL(result.url);
+      const params = new URLSearchParams(url.hash.substring(1));
+      const accessToken = params.get('access_token');
+      const refreshToken = params.get('refresh_token');
+
+      if (accessToken) {
+        const { error: sessionError } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken ?? '',
+        });
+        if (sessionError) return { error: sessionError.message };
+      }
+
+      return { error: null };
+    } catch {
+      return { error: 'Google sign-in failed' };
+    }
+  }
+
+  async function signInWithApple() {
+    if (Platform.OS !== 'ios') {
+      return { error: 'Apple sign-in is only available on iOS' };
+    }
+
+    try {
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      });
+
+      if (!credential.identityToken) {
+        return { error: 'No identity token received from Apple' };
+      }
+
+      const { error } = await supabase.auth.signInWithIdToken({
+        provider: 'apple',
+        token: credential.identityToken,
+      });
+
+      return { error: error?.message ?? null };
+    } catch {
+      return { error: null };
+    }
+  }
+
   async function signOut() {
     await supabase.auth.signOut();
   }
 
   return (
-    <AuthContext.Provider value={{ session, user: session?.user ?? null, loading, signUp, signIn, signOut }}>
+    <AuthContext.Provider value={{
+      session,
+      user: session?.user ?? null,
+      loading,
+      signUp,
+      signIn,
+      signInWithGoogle,
+      signInWithApple,
+      signOut,
+    }}>
       {children}
     </AuthContext.Provider>
   );

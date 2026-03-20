@@ -2,6 +2,7 @@
   "expo": {
     "name": "BootWatch",
     "slug": "bootwatch",
+    "scheme": "bootwatch",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -12,9 +13,12 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.bootwatch.app",
+      "usesAppleSignIn": true
     },
     "android": {
+      "package": "com.bootwatch.app",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -25,6 +29,9 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      "expo-web-browser"
+    ]
   }
 }
