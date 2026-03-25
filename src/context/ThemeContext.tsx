@@ -1,6 +1,12 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { useColorScheme } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFonts, Outfit_600SemiBold, Outfit_700Bold } from '@expo-google-fonts/outfit';
+import {
+  DMSans_400Regular,
+  DMSans_500Medium,
+  DMSans_700Bold,
+} from '@expo-google-fonts/dm-sans';
 import { lightColors, darkColors, AppColors } from '../theme';
 
 export type ThemeMode = 'light' | 'dark' | 'system';
@@ -21,6 +27,14 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const [mode, setModeState] = useState<ThemeMode>('dark');
   const [loaded, setLoaded] = useState(false);
 
+  const [fontsLoaded] = useFonts({
+    Outfit_600SemiBold,
+    Outfit_700Bold,
+    DMSans_400Regular,
+    DMSans_500Medium,
+    DMSans_700Bold,
+  });
+
   useEffect(() => {
     AsyncStorage.getItem(STORAGE_KEY).then((stored) => {
       if (stored === 'light' || stored === 'dark' || stored === 'system') {
@@ -38,7 +52,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const isDark = mode === 'dark' || (mode === 'system' && systemScheme === 'dark');
   const colors = isDark ? darkColors : lightColors;
 
-  if (!loaded) return null;
+  if (!loaded || !fontsLoaded) return null;
 
   return (
     <ThemeContext.Provider value={{ mode, isDark, colors, setMode }}>

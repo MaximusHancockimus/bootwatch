@@ -1,13 +1,16 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Animated, Image, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import { useRoute } from '@react-navigation/native';
 import { complexes, CUSTOM_TIMER_ID, getComplexById } from '../data/complexes';
 import { useParkingTimer, TimerPhase } from '../hooks/useParkingTimer';
 import RiskBadge from '../components/RiskBadge';
-import { fontSize, fontWeight, spacing, borderRadius } from '../theme';
+import { fontSize, spacing, borderRadius, fonts } from '../theme';
 import { useTheme } from '../context/ThemeContext';
 import { showTimerMascot } from '../config/features';
+import ScreenGradientBackdrop from '../components/ScreenGradientBackdrop';
+import { formatVisitorLimitMinutes } from '../utils/parkingDisplay';
 
 const TIMER_ON_WATCH_IMAGE = require('../../assets/timer-on-watch.png');
 
@@ -75,6 +78,9 @@ export default function TimerScreen() {
 
   const handleStart = useCallback(() => {
     if (canStart) {
+      if (Platform.OS !== 'web') {
+        void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      }
       const complexId = selectedId !== CUSTOM_TIMER_ID ? selectedId ?? undefined : undefined;
       timer.start(durationMinutes, complexId);
     }
@@ -83,10 +89,29 @@ export default function TimerScreen() {
   const phaseColor = PHASE_COLORS[timer.phase];
 
   const styles = createStyles(colors);
+  const tickAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    const shouldPulse =
+      timer.isRunning && (timer.phase === 'running' || timer.phase === 'warning' || timer.phase === 'critical');
+    if (!shouldPulse) {
+      tickAnim.setValue(1);
+      return;
+    }
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(tickAnim, { toValue: 1.02, duration: 900, useNativeDriver: true }),
+        Animated.timing(tickAnim, { toValue: 1, duration: 900, useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [timer.isRunning, timer.phase, tickAnim]);
 
   // ─── Active Timer View ───
   if (timer.isRunning || timer.phase === 'expired') {
     return (
+      <ScreenGradientBackdrop>
       <View style={styles.container}>
         <View style={styles.timerActive}>
           {selectedComplex && (
@@ -99,9 +124,11 @@ export default function TimerScreen() {
             <Text style={styles.activeComplexName}>Custom Timer</Text>
           )}
 
-          <Text style={[styles.countdown, { color: phaseColor }]}>
+          <Animated.Text
+            style={[styles.countdown, { color: phaseColor, transform: [{ scale: tickAnim }] }]}
+          >
             {formatTime(timer.remainingSeconds)}
-          </Text>
+          </Animated.Text>
 
           <Text style={[styles.phaseLabel, { color: phaseColor }]}>
             {timer.phase === 'running' && "You're good \u2014 timer running"}
@@ -117,8 +144,8 @@ export default function TimerScreen() {
                 source={TIMER_ON_WATCH_IMAGE}
                 style={[
                   styles.timerMascot,
-                  Platform.OS === 'web' && mascotWebDropShadow,
-                  Platform.OS === 'ios' && mascotIosShadow,
+                  Platform.OS === 'web' ? (mascotWebDropShadow as object) : null,
+                  Platform.OS === 'ios' ? mascotIosShadow : null,
                 ]}
                 resizeMode="contain"
                 accessibilityLabel="BootWatch scout on watch"
@@ -152,16 +179,18 @@ export default function TimerScreen() {
           <View style={styles.permissionBanner}>
             <Ionicons name="notifications-off-outline" size={18} color={colors.warning} />
             <Text style={styles.permissionText}>
-              Notifications disabled — you won't get alerts when time is low.
+              Notifications disabled — you won't get alerts when time is low or booter is reported in area.
             </Text>
           </View>
         )}
       </View>
+      </ScreenGradientBackdrop>
     );
   }
 
   // ─── Setup View ───
   return (
+    <ScreenGradientBackdrop>
     <ScrollView style={styles.container} contentContainerStyle={styles.setupContent}>
       <Text style={styles.heading}>Start a Parking Timer</Text>
       <Text style={styles.subheading}>Select where you're parked</Text>
@@ -174,7 +203,8 @@ export default function TimerScreen() {
             <RiskBadge level={selectedComplex.riskLevel} />
           </View>
           <Text style={styles.selectedCardDetail}>
-            {selectedComplex.visitorTimeLimitMinutes} min limit · {selectedComplex.bootingCompany ?? 'No boot company'}
+            {formatVisitorLimitMinutes(selectedComplex.visitorTimeLimitMinutes)} limit ·{' '}
+            {selectedComplex.bootingCompany ?? 'No boot company'}
           </Text>
           <Text style={styles.changeText}>Tap to change</Text>
         </Pressable>
@@ -233,7 +263,7 @@ export default function TimerScreen() {
       {selectedId && !showSelector && (
         <View style={styles.startSection}>
           <Text style={styles.durationSummary}>
-            Timer: {durationMinutes > 0 ? `${durationMinutes} minutes` : 'Enter a duration'}
+            Timer: {durationMinutes > 0 ? formatVisitorLimitMinutes(durationMinutes) : 'Enter a duration'}
           </Text>
           <Pressable
             style={[styles.startButton, !canStart && styles.startButtonDisabled]}
@@ -246,6 +276,7 @@ export default function TimerScreen() {
         </View>
       )}
     </ScrollView>
+    </ScreenGradientBackdrop>
   );
 }
 
@@ -253,7 +284,7 @@ function createStyles(colors: any) {
   return StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: 'transparent',
   },
   setupContent: {
     padding: spacing.lg,
@@ -261,12 +292,13 @@ function createStyles(colors: any) {
   },
   heading: {
     fontSize: fontSize.xxl,
-    fontWeight: fontWeight.bold,
+    fontFamily: fonts.displayBold,
     color: colors.text,
     marginBottom: spacing.xs,
   },
   subheading: {
     fontSize: fontSize.md,
+    fontFamily: fonts.body,
     color: colors.textSecondary,
     marginBottom: spacing.lg,
   },
@@ -288,18 +320,19 @@ function createStyles(colors: any) {
   },
   selectedCardName: {
     fontSize: fontSize.lg,
-    fontWeight: fontWeight.semibold,
+    fontFamily: fonts.display,
     color: colors.text,
   },
   selectedCardDetail: {
     fontSize: fontSize.sm,
+    fontFamily: fonts.body,
     color: colors.textSecondary,
     marginBottom: spacing.sm,
   },
   changeText: {
     fontSize: fontSize.sm,
+    fontFamily: fonts.bodyMedium,
     color: colors.primary,
-    fontWeight: fontWeight.medium,
   },
 
   // Custom timer card
@@ -325,13 +358,14 @@ function createStyles(colors: any) {
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     fontSize: fontSize.xl,
-    fontWeight: fontWeight.bold,
+    fontFamily: fonts.displayBold,
     color: colors.text,
     width: 80,
     textAlign: 'center',
   },
   customInputLabel: {
     fontSize: fontSize.md,
+    fontFamily: fonts.body,
     color: colors.textSecondary,
   },
 
@@ -362,11 +396,12 @@ function createStyles(colors: any) {
   },
   selectorItemText: {
     fontSize: fontSize.md,
-    fontWeight: fontWeight.medium,
+    fontFamily: fonts.bodyMedium,
     color: colors.text,
   },
   selectorItemMeta: {
     fontSize: fontSize.sm,
+    fontFamily: fonts.body,
     color: colors.textSecondary,
   },
   riskDot: {
@@ -382,6 +417,7 @@ function createStyles(colors: any) {
   },
   durationSummary: {
     fontSize: fontSize.md,
+    fontFamily: fonts.body,
     color: colors.textSecondary,
     textAlign: 'center',
   },
@@ -400,7 +436,7 @@ function createStyles(colors: any) {
   startButtonText: {
     color: colors.textInverse,
     fontSize: fontSize.lg,
-    fontWeight: fontWeight.semibold,
+    fontFamily: fonts.display,
   },
 
   // Active timer
@@ -418,7 +454,7 @@ function createStyles(colors: any) {
   },
   activeComplexName: {
     fontSize: fontSize.lg,
-    fontWeight: fontWeight.semibold,
+    fontFamily: fonts.display,
     color: colors.text,
   },
   timerMascotWrap: {
@@ -449,26 +485,29 @@ function createStyles(colors: any) {
     zIndex: 1,
   },
   countdown: {
-    fontSize: 72,
-    fontWeight: fontWeight.bold,
+    fontSize: fontSize.display,
+    fontFamily: fonts.displayBold,
     fontVariant: ['tabular-nums'],
+    letterSpacing: -1,
   },
   phaseLabel: {
     fontSize: fontSize.md,
-    fontWeight: fontWeight.medium,
+    fontFamily: fonts.bodyMedium,
     textAlign: 'center',
+    maxWidth: 280,
+    lineHeight: 22,
   },
   progressBarTrack: {
     width: '80%',
-    height: 6,
-    backgroundColor: colors.neutralLight,
-    borderRadius: 3,
+    height: 8,
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: borderRadius.full,
     overflow: 'hidden',
     marginTop: spacing.sm,
   },
   progressBarFill: {
     height: '100%',
-    borderRadius: 3,
+    borderRadius: borderRadius.full,
   },
   cancelButton: {
     flexDirection: 'row',
@@ -485,7 +524,7 @@ function createStyles(colors: any) {
   cancelButtonText: {
     color: colors.danger,
     fontSize: fontSize.lg,
-    fontWeight: fontWeight.semibold,
+    fontFamily: fonts.bodyMedium,
   },
 
   // Permission banner
@@ -500,6 +539,7 @@ function createStyles(colors: any) {
   },
   permissionText: {
     fontSize: fontSize.sm,
+    fontFamily: fonts.body,
     color: colors.text,
     flex: 1,
   },

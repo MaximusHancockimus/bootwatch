@@ -9,8 +9,9 @@ import { useSavedComplexes } from '../hooks/useSavedComplexes';
 import { useHeatData, getHeatLevel, HEAT_COLORS, HEAT_LABELS } from '../hooks/useHeatData';
 import ComplexDetailSheet from '../components/ComplexDetailSheet';
 import RiskBadge from '../components/RiskBadge';
-import { fontSize, fontWeight, spacing, borderRadius } from '../theme';
+import { fontSize, fontWeight, spacing, borderRadius, shadowFloat, shadowCard, fonts } from '../theme';
 import { useTheme } from '../context/ThemeContext';
+import { formatVisitorLimitMinutes } from '../utils/parkingDisplay';
 
 let NativeMap: any = null;
 let WebMap: any = null;
@@ -108,8 +109,14 @@ export default function MapScreen() {
             style={[styles.modeButton, mapMode === 'complexes' && styles.modeButtonActive]}
             onPress={() => setMapMode('complexes')}
           >
-            <Ionicons name="business-outline" size={14} color={mapMode === 'complexes' ? colors.primary : colors.textSecondary} />
-            <Text style={[styles.modeButtonText, mapMode === 'complexes' && styles.modeButtonTextActive]}>Complexes</Text>
+            <Ionicons
+              name="business-outline"
+              size={14}
+              color={mapMode === 'complexes' ? colors.accent : colors.textSecondary}
+            />
+            <Text style={[styles.modeButtonText, mapMode === 'complexes' && styles.modeButtonTextActive]}>
+              Complexes
+            </Text>
           </Pressable>
           <Pressable
             style={[styles.modeButton, mapMode === 'heatmap' && styles.modeButtonActive]}
@@ -174,7 +181,7 @@ export default function MapScreen() {
                     <View style={styles.cardMetaItem}>
                       <Ionicons name="time-outline" size={14} color={colors.textSecondary} />
                       <Text style={styles.cardMetaText}>
-                        {c.visitorTimeLimitMinutes ? `${c.visitorTimeLimitMinutes} min` : 'Unknown'}
+                        {formatVisitorLimitMinutes(c.visitorTimeLimitMinutes)}
                       </Text>
                     </View>
                     {c.bootingCompany && (
@@ -237,19 +244,16 @@ function createStyles(colors: any) {
     backgroundColor: colors.background,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
-    borderRadius: borderRadius.md,
+    borderRadius: borderRadius.lg,
     borderWidth: 1,
     borderColor: colors.border,
     gap: spacing.sm,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 4,
+    ...shadowFloat,
   },
   searchInput: {
     flex: 1,
     fontSize: fontSize.md,
+    fontFamily: fonts.body,
     color: colors.text,
     paddingVertical: 0,
   },
@@ -258,11 +262,12 @@ function createStyles(colors: any) {
   modeToggle: {
     flexDirection: 'row',
     backgroundColor: colors.background,
-    borderRadius: borderRadius.md,
+    borderRadius: borderRadius.lg,
     padding: 3,
     borderWidth: 1,
     borderColor: colors.border,
     marginTop: spacing.sm,
+    ...shadowCard,
   },
   modeButton: {
     flex: 1,
@@ -298,21 +303,17 @@ function createStyles(colors: any) {
     right: spacing.md,
     zIndex: 10,
     backgroundColor: colors.background,
-    borderRadius: borderRadius.md,
+    borderRadius: borderRadius.lg,
     padding: spacing.sm,
     paddingHorizontal: spacing.md,
     borderWidth: 1,
     borderColor: colors.border,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 4,
     gap: spacing.xs,
+    ...shadowFloat,
   },
   legendTitle: {
     fontSize: fontSize.xs,
-    fontWeight: fontWeight.semibold,
+    fontFamily: fonts.display,
     color: colors.textSecondary,
     marginBottom: 2,
   },
@@ -328,6 +329,7 @@ function createStyles(colors: any) {
   },
   legendLabel: {
     fontSize: fontSize.xs,
+    fontFamily: fonts.body,
     color: colors.text,
   },
 
@@ -339,14 +341,12 @@ function createStyles(colors: any) {
     right: 0,
     zIndex: 10,
     backgroundColor: colors.background,
-    borderTopLeftRadius: borderRadius.lg,
-    borderTopRightRadius: borderRadius.lg,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 8,
+    borderTopLeftRadius: borderRadius.xl,
+    borderTopRightRadius: borderRadius.xl,
     maxHeight: 80,
+    borderTopWidth: 1,
+    borderColor: colors.border,
+    ...shadowFloat,
   },
   panelExpanded: {
     maxHeight: '55%',
@@ -358,9 +358,9 @@ function createStyles(colors: any) {
     paddingHorizontal: spacing.lg,
   },
   handleBar: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
+    width: 44,
+    height: 5,
+    borderRadius: 3,
     backgroundColor: colors.border,
     marginBottom: spacing.sm,
   },
@@ -372,7 +372,7 @@ function createStyles(colors: any) {
   },
   panelTitle: {
     fontSize: fontSize.md,
-    fontWeight: fontWeight.semibold,
+    fontFamily: fonts.display,
     color: colors.text,
   },
   panelList: {
@@ -387,10 +387,11 @@ function createStyles(colors: any) {
   // Complex cards
   card: {
     backgroundColor: colors.surface,
-    borderRadius: borderRadius.md,
+    borderRadius: borderRadius.lg,
     padding: spacing.md,
     borderWidth: 1,
     borderColor: colors.border,
+    ...shadowCard,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -400,7 +401,7 @@ function createStyles(colors: any) {
   },
   cardName: {
     fontSize: fontSize.md,
-    fontWeight: fontWeight.semibold,
+    fontFamily: fonts.bodyMedium,
     color: colors.text,
     flex: 1,
     marginRight: spacing.sm,

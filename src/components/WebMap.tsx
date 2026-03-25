@@ -12,18 +12,25 @@ interface Props {
 }
 
 function createMarkerIcon(color: string) {
+  const svg = encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="36" height="44" viewBox="0 0 36 44">
+      <defs>
+        <filter id="s" x="-40%" y="-40%" width="180%" height="180%">
+          <feDropShadow dx="0" dy="2" stdDeviation="2" flood-opacity="0.35"/>
+        </filter>
+      </defs>
+      <path filter="url(#s)" fill="${color}" stroke="#ffffff" stroke-width="2.5"
+        d="M18 2C10.8 2 5 7.48 5 14.2c0 8.1 11.2 20.5 12.4 21.8.4.4 1 .6 1.6.6s1.2-.2 1.6-.6C21.8 34.7 33 22.3 33 14.2 33 7.48 27.2 2 20 2h-2z"/>
+      <circle fill="#ffffff" cx="18" cy="15" r="5.5" opacity="0.95"/>
+      <circle fill="${color}" cx="18" cy="15" r="3"/>
+    </svg>`,
+  );
   return L.divIcon({
-    className: '',
-    html: `<div style="
-      width: 28px; height: 28px;
-      background: ${color};
-      border: 3px solid white;
-      border-radius: 50%;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.35);
-    "></div>`,
-    iconSize: [28, 28],
-    iconAnchor: [14, 14],
-    popupAnchor: [0, -16],
+    className: 'bootwatch-marker',
+    html: `<div style="width:36px;height:44px;background:url('data:image/svg+xml,${svg}') center/contain no-repeat"></div>`,
+    iconSize: [36, 44],
+    iconAnchor: [18, 42],
+    popupAnchor: [0, -36],
   });
 }
 
@@ -32,7 +39,6 @@ export default function WebMap({ complexes, onMarkerPress, colorOverrides }: Pro
   const mapInstanceRef = useRef<L.Map | null>(null);
   const markersRef = useRef<L.Marker[]>([]);
 
-  // Initialize map once
   useEffect(() => {
     if (!containerRef.current || mapInstanceRef.current) return;
 
@@ -46,12 +52,11 @@ export default function WebMap({ complexes, onMarkerPress, colorOverrides }: Pro
       maxZoom: 19,
     }).addTo(map);
 
-    // User location
     map.locate({ setView: false, watch: false });
     map.on('locationfound', (e) => {
       L.circleMarker(e.latlng, {
         radius: 8,
-        fillColor: '#4285F4',
+        fillColor: '#16A34A',
         fillOpacity: 1,
         color: 'white',
         weight: 3,
@@ -66,7 +71,6 @@ export default function WebMap({ complexes, onMarkerPress, colorOverrides }: Pro
     };
   }, []);
 
-  // Update markers when complexes change
   useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map) return;
@@ -79,7 +83,7 @@ export default function WebMap({ complexes, onMarkerPress, colorOverrides }: Pro
       const marker = L.marker([complex.latitude, complex.longitude], {
         icon: createMarkerIcon(color),
       })
-        .bindTooltip(complex.name, { direction: 'top', offset: [0, -16] })
+        .bindTooltip(complex.name, { direction: 'top', offset: [0, -28] })
         .on('click', () => onMarkerPress(complex))
         .addTo(map);
 

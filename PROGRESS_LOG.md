@@ -400,6 +400,56 @@ The `EXPO_PUBLIC_` prefix is an Expo convention that makes these values accessib
 | 8B — Onboarding flow | Complete |
 | 8C — Error handling | Complete |
 | 8D — Performance pass | Complete |
+| 8E — UI polish & map theming | Complete |
+| 8F — Feed / Timer gradients | Complete |
+| 9.1 — Complex data import pipeline | Complete |
+
+---
+
+## Step 8E — UI polish & map theming
+
+**Why:** Align secondary screens and map chrome with the same typography (Outfit / DM Sans), `shadowCard` / `shadowFloat`, radii, and `AppColors` usage as Map / Feed / Timer.
+
+**What to know:**
+- **`src/theme/index.ts`** — `safe` green matches heat-map “good” green (`#16A34A`) so pins and risk colors read consistently.
+- **`src/components/WebMap.tsx`** — User location dot uses theme primary/safe styling on web.
+- **`src/screens/MapScreen.tsx`** — “Complexes” map-mode control uses accent (yellow) for the icon only; no heavy yellow pill behind it.
+- **`src/screens/AuthScreen.tsx`**, **`OnboardingScreen.tsx`**, **`ProfileScreen.tsx`**, **`ReportSightingModal.tsx`**, **`ErrorBoundary.tsx`** — Theme-driven colors and shared elevation/radius patterns. `ErrorBoundary` uses `Appearance` for light/dark (it wraps the tree above `ThemeProvider`, so it cannot call `useTheme()`).
+
+**Feature flags:** **`src/config/features.ts`** + **`.env` / `.env.example`** — e.g. `EXPO_PUBLIC_SHOW_MASCOT` toggles timer mascot art without code changes.
+
+---
+
+## Step 8F — Feed & Timer screen gradients
+
+**Why:** Softer than a flat charcoal fill; full-screen vertical wash from background → surface → surface-muted.
+
+**What to know:**
+- **Dependency:** `expo-linear-gradient` (Expo SDK–pinned via `npx expo install expo-linear-gradient`).
+- **`src/components/ScreenGradientBackdrop.tsx`** — Wraps children in `flex: 1`; gradient is `absoluteFill` behind content; uses `useTheme().colors` so light/dark both work.
+- **`src/screens/FeedScreen.tsx`** — Loading, error, and main list states sit inside the backdrop; list/root views use transparent backgrounds so the gradient shows through.
+- **`src/screens/TimerScreen.tsx`** — Same for setup (`ScrollView`) and active timer layouts.
+
+---
+
+## Step 9.1 — Complex / visitor data pipeline
+
+**Why:** You have many complexes; hand-editing `complexes.ts` for every sign photo is slow and error-prone. One JSON source + a script keeps the app bundle and Supabase in sync.
+
+**The flow (memorize this):**
+
+1. **`src/data/rexburg-housing.json`** — Master list: each row needs at least `name`, `lat`, `lng`. Optional verified fields (when present, they **replace** the old rotating placeholders):
+   - `visitorTimeLimitMinutes` (number or `null` if unclear)
+   - `bootingCompany` (string or `null`)
+   - `signageQuality` — `'well-marked' | 'moderate' | 'sneaky' | 'unknown'`
+   - `riskLevel` — `'high' | 'moderate' | 'low' | 'unknown'`
+   - `notes` — verbatim or summary from the sign; you can note photo filenames here for your own audit trail
+2. **`node scripts/generate-complexes.mjs`** — Reads the JSON, assigns stable `id`s (slug from name, with `-2`, `-3` suffixes for duplicate names), writes:
+   - **`src/data/complexes.ts`** — What the app imports (`REXBURG_CENTER`, `complexes`, `getComplexById`, timer, map, reports).
+   - **`supabase/sync_complexes_from_app.sql`** — `INSERT ... ON CONFLICT (id) DO UPDATE` so Supabase `public.complexes` stays aligned with app IDs (needed for `sightings.complex_id` FK).
+3. **Supabase** — Run the generated SQL in the SQL Editor when you want the server copy updated.
+
+**Sign photos:** Not stored in the `Complex` type yet. Keep files named by complex `id` (e.g. `kensington-manor.jpg`) and reference them in `notes` until you add storage + a URL field if needed.
 
 ---
 
@@ -474,4 +524,4 @@ The `EXPO_PUBLIC_` prefix is an Expo convention that makes these values accessib
 
 ---
 
-*This file will be updated as we complete each step.*
+*Updated as features land — recent entries: 8E (UI/map theming), 8F (gradients), 9.1 (JSON → complexes + SQL).*

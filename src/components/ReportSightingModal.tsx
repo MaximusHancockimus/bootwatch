@@ -1,13 +1,14 @@
-import { useState } from 'react';
-import { ActivityIndicator, Alert, Animated, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useState, type CSSProperties } from 'react';
+import { ActivityIndicator, Alert, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import * as Haptics from 'expo-haptics';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { complexes } from '../data/complexes';
 import { ReportType } from '../types/sighting';
 import { RISK_CONFIG } from '../utils/risk';
-import { fontSize, fontWeight, spacing, borderRadius } from '../theme';
+import { fontSize, spacing, borderRadius, shadowFloat, fonts } from '../theme';
 import { useTheme } from '../context/ThemeContext';
 
 interface Props {
@@ -71,7 +72,12 @@ export default function ReportSightingModal({ visible, onClose, onSuccess }: Pro
   }
 
   async function handleSubmit() {
-    if (!selectedComplexId || !user) return;
+    if (!user) {
+      if (Platform.OS === 'web') alert('Sign in to submit a report.');
+      else Alert.alert('Sign in required', 'You need an account to post a sighting.');
+      return;
+    }
+    if (!selectedComplexId) return;
     setSubmitting(true);
 
     const complex = complexes.find((c) => c.id === selectedComplexId)!;
@@ -97,9 +103,20 @@ export default function ReportSightingModal({ visible, onClose, onSuccess }: Pro
     setSubmitting(false);
 
     if (error) {
-      if (Platform.OS === 'web') alert('Failed to submit report. Please try again.');
-      else Alert.alert('Error', 'Failed to submit report. Please try again.');
+      console.error('[ReportSighting] insert failed', error);
+      const fk =
+        error.code === '23503' ||
+        /complex_id|complexes|foreign key/i.test(error.message ?? '');
+      const hint = fk
+        ? 'Your Supabase `complexes` table is missing this property ID. In the Supabase SQL Editor, run `supabase/sync_complexes_from_app.sql` (regenerate with `node scripts/generate-complexes.mjs`), then try again.'
+        : '';
+      const body = [hint, error.message].filter(Boolean).join('\n\n');
+      if (Platform.OS === 'web') alert(`Could not submit report.\n\n${body}`);
+      else Alert.alert('Could not submit report', body || 'Please try again.');
     } else {
+      if (Platform.OS !== 'web') {
+        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
       const hadPhotoFailure = !!photoUri && !photoUrl;
       setReportType('spotter');
       setSelectedComplexId(null);
@@ -142,125 +159,136 @@ export default function ReportSightingModal({ visible, onClose, onSuccess }: Pro
       </View>
     )}
     <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose}>
-      <Pressable style={styles.overlay} onPress={handleClose}>
-        <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
-          <View style={styles.handle} />
-          <Text style={styles.title}>Report</Text>
-          <Text style={styles.subtitle}>What happened?</Text>
+      {/* Backdrop + sheet as siblings: nested Pressables swallow/bubble taps badly on web */}
+      <View style={styles.overlay}>
+        <Pressable style={styles.backdrop} onPress={handleClose} accessibilityLabel="Close report" />
+        <View style={styles.sheet}>
+          <View style={styles.accentStrip} />
+          <ScrollView
+            keyboardShouldPersistTaps="always"
+            keyboardDismissMode="on-drag"
+            showsVerticalScrollIndicator
+            contentContainerStyle={styles.sheetScrollContent}
+            nestedScrollEnabled
+          >
+            <View style={styles.handle} />
+            <Text style={styles.title}>Report</Text>
+            <Text style={styles.subtitle}>What happened?</Text>
 
-          {/* Report type selector */}
-          <View style={styles.typeRow}>
-            <Pressable
-              style={[styles.typeOption, reportType === 'spotter' && styles.typeOptionSelected]}
-              onPress={() => setReportType('spotter')}
-            >
-              <Ionicons name="eye-outline" size={22} color={reportType === 'spotter' ? colors.warning : colors.textSecondary} />
-              <Text style={[styles.typeLabel, reportType === 'spotter' && styles.typeLabelSelected]}>
-                Spotted a boot truck
-              </Text>
-            </Pressable>
-            <Pressable
-              style={[styles.typeOption, reportType === 'booted' && styles.typeOptionBooted]}
-              onPress={() => setReportType('booted')}
-            >
-              <Ionicons name="lock-closed-outline" size={22} color={reportType === 'booted' ? colors.danger : colors.textSecondary} />
-              <Text style={[styles.typeLabel, reportType === 'booted' && styles.typeLabelBooted]}>
-                I got booted
-              </Text>
-            </Pressable>
-          </View>
-
-          <Text style={styles.sectionLabel}>Where?</Text>
-          <View style={styles.searchRow}>
-            <Ionicons name="search" size={16} color={colors.textSecondary} />
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search complexes..."
-              placeholderTextColor={colors.textSecondary}
-              value={complexSearch}
-              onChangeText={setComplexSearch}
-              autoCorrect={false}
-            />
-            {complexSearch.length > 0 && (
-              <Pressable onPress={() => setComplexSearch('')}>
-                <Ionicons name="close-circle" size={18} color={colors.textSecondary} />
-              </Pressable>
-            )}
-          </View>
-          <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
-            {filteredComplexes.map((c) => (
+            <View style={styles.typeRow}>
               <Pressable
-                key={c.id}
-                style={[styles.item, selectedComplexId === c.id && styles.itemSelected]}
-                onPress={() => setSelectedComplexId(c.id)}
+                style={[styles.typeOption, reportType === 'spotter' && styles.typeOptionSelected]}
+                onPress={() => setReportType('spotter')}
               >
-                <View style={[styles.dot, { backgroundColor: RISK_CONFIG[c.riskLevel].color }]} />
-                <Text style={styles.itemText}>{c.name}</Text>
-                {selectedComplexId === c.id && (
-                  <Ionicons name="checkmark-circle" size={20} color={colors.primary} />
-                )}
-              </Pressable>
-            ))}
-          </ScrollView>
-
-          {/* Time selector */}
-          <Text style={styles.sectionLabel}>When did you see it?</Text>
-          <View style={styles.timeRow}>
-            {TIME_OPTIONS.map((opt) => (
-              <Pressable
-                key={opt.minutes}
-                style={[styles.timeChip, timeOffset === opt.minutes && styles.timeChipSelected]}
-                onPress={() => setTimeOffset(opt.minutes)}
-              >
-                <Text style={[styles.timeChipText, timeOffset === opt.minutes && styles.timeChipTextSelected]}>
-                  {opt.label}
+                <Ionicons name="eye-outline" size={22} color={reportType === 'spotter' ? colors.warning : colors.textSecondary} />
+                <Text style={[styles.typeLabel, reportType === 'spotter' && styles.typeLabelSelected]}>
+                  Spotted a boot truck
                 </Text>
               </Pressable>
-            ))}
-          </View>
-
-          {/* Anonymous toggle */}
-          <Pressable style={styles.anonRow} onPress={() => setIsAnonymous((v) => !v)}>
-            <View style={styles.anonLabel}>
-              <Ionicons name="shield-checkmark-outline" size={20} color={isAnonymous ? colors.primary : colors.textSecondary} />
-              <View>
-                <Text style={styles.anonTitle}>Post anonymously</Text>
-                <Text style={styles.anonSubtitle}>Your name won't appear on this report</Text>
-              </View>
+              <Pressable
+                style={[styles.typeOption, reportType === 'booted' && styles.typeOptionBooted]}
+                onPress={() => setReportType('booted')}
+              >
+                <Ionicons name="lock-closed-outline" size={22} color={reportType === 'booted' ? colors.danger : colors.textSecondary} />
+                <Text style={[styles.typeLabel, reportType === 'booted' && styles.typeLabelBooted]}>
+                  I got booted
+                </Text>
+              </Pressable>
             </View>
-            <View style={[styles.toggle, isAnonymous && styles.toggleActive]}>
-              <View style={[styles.toggleThumb, isAnonymous && styles.toggleThumbActive]} />
+
+            <Text style={styles.sectionLabel}>Where?</Text>
+            <View style={styles.searchRow}>
+              <Ionicons name="search" size={16} color={colors.textSecondary} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search complexes..."
+                placeholderTextColor={colors.textSecondary}
+                value={complexSearch}
+                onChangeText={setComplexSearch}
+                autoCorrect={false}
+              />
+              {complexSearch.length > 0 && (
+                <Pressable onPress={() => setComplexSearch('')}>
+                  <Ionicons name="close-circle" size={18} color={colors.textSecondary} />
+                </Pressable>
+              )}
             </View>
-          </Pressable>
 
-          {/* Photo picker */}
-          <Pressable style={styles.photoButton} onPress={pickPhoto}>
-            {photoUri ? (
-              <Image source={{ uri: photoUri }} style={styles.photoPreview} />
-            ) : (
-              <View style={styles.photoPlaceholder}>
-                <Ionicons name="camera-outline" size={24} color={colors.textSecondary} />
-                <Text style={styles.photoPlaceholderText}>Add photo (optional)</Text>
+            <ScrollView
+              style={styles.complexListBox}
+              contentContainerStyle={styles.listContent}
+              keyboardShouldPersistTaps="always"
+              nestedScrollEnabled
+              showsVerticalScrollIndicator
+            >
+              {filteredComplexes.map((c) => (
+                <Pressable
+                  key={c.id}
+                  style={[styles.item, selectedComplexId === c.id && styles.itemSelected]}
+                  onPress={() => setSelectedComplexId(c.id)}
+                >
+                  <View style={[styles.dot, { backgroundColor: RISK_CONFIG[c.riskLevel].color }]} />
+                  <Text style={styles.itemText}>{c.name}</Text>
+                  {selectedComplexId === c.id && (
+                    <Ionicons name="checkmark-circle" size={20} color={colors.primary} />
+                  )}
+                </Pressable>
+              ))}
+            </ScrollView>
+
+            <Text style={styles.sectionLabel}>When did you see it?</Text>
+            <View style={styles.timeRow}>
+              {TIME_OPTIONS.map((opt) => (
+                <Pressable
+                  key={opt.minutes}
+                  style={[styles.timeChip, timeOffset === opt.minutes && styles.timeChipSelected]}
+                  onPress={() => setTimeOffset(opt.minutes)}
+                >
+                  <Text style={[styles.timeChipText, timeOffset === opt.minutes && styles.timeChipTextSelected]}>
+                    {opt.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <Pressable style={styles.anonRow} onPress={() => setIsAnonymous((v) => !v)}>
+              <View style={styles.anonLabel}>
+                <Ionicons name="shield-checkmark-outline" size={20} color={isAnonymous ? colors.primary : colors.textSecondary} />
+                <View>
+                  <Text style={styles.anonTitle}>Post anonymously</Text>
+                  <Text style={styles.anonSubtitle}>Your name won't appear on this report</Text>
+                </View>
               </View>
-            )}
-          </Pressable>
+              <View style={[styles.toggle, isAnonymous && styles.toggleActive]}>
+                <View style={[styles.toggleThumb, isAnonymous && styles.toggleThumbActive]} />
+              </View>
+            </Pressable>
 
-          <Pressable
-            style={[styles.submitButton, (!selectedComplexId || submitting) && styles.submitButtonDisabled]}
-            onPress={handleSubmit}
-            disabled={!selectedComplexId || submitting}
-          >
-            {submitting ? (
-              <ActivityIndicator color={colors.textInverse} />
-            ) : (
-              <>
-                <Ionicons name="alert-circle" size={20} color={colors.textInverse} />
-                <Text style={styles.submitButtonText}>Report Sighting</Text>
-              </>
+            <Pressable style={styles.photoButton} onPress={pickPhoto}>
+              {photoUri ? (
+                <Image source={{ uri: photoUri }} style={styles.photoPreview} />
+              ) : (
+                <View style={styles.photoPlaceholder}>
+                  <Ionicons name="camera-outline" size={24} color={colors.textSecondary} />
+                  <Text style={styles.photoPlaceholderText}>Add photo (optional)</Text>
+                </View>
+              )}
+            </Pressable>
+
+            {!selectedComplexId && (
+              <Text style={styles.submitHint}>Select a complex above to enable submit.</Text>
             )}
-          </Pressable>
-        </Pressable>
-      </Pressable>
+
+            <ReportSightingSubmitButton
+              styles={styles}
+              colors={colors}
+              disabled={!selectedComplexId || submitting}
+              submitting={submitting}
+              onSubmit={() => void handleSubmit()}
+            />
+          </ScrollView>
+        </View>
+      </View>
     </Modal>
     </>
   );
@@ -271,32 +299,58 @@ function createStyles(colors: import('../theme').AppColors) {
   overlay: {
     flex: 1,
     justifyContent: 'flex-end',
-    backgroundColor: 'rgba(0,0,0,0.3)',
+    backgroundColor: 'rgba(15, 23, 42, 0.45)',
+  },
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 0,
   },
   sheet: {
     backgroundColor: colors.background,
-    borderTopLeftRadius: borderRadius.lg,
-    borderTopRightRadius: borderRadius.lg,
+    borderTopLeftRadius: borderRadius.xl,
+    borderTopRightRadius: borderRadius.xl,
+    maxHeight: '85%',
+    width: '100%',
+    zIndex: 1,
+    elevation: 24,
+    overflow: 'hidden',
+    ...shadowFloat,
+  },
+  accentStrip: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 3,
+    backgroundColor: colors.accent,
+    borderTopLeftRadius: borderRadius.xl,
+    borderTopRightRadius: borderRadius.xl,
+    zIndex: 2,
+  },
+  sheetScrollContent: {
     padding: spacing.lg,
     paddingBottom: spacing.xl,
-    maxHeight: '80%',
+    paddingTop: spacing.sm,
+    gap: 0,
   },
   handle: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
+    width: 44,
+    height: 5,
+    borderRadius: 3,
     backgroundColor: colors.border,
     alignSelf: 'center',
     marginBottom: spacing.md,
+    marginTop: spacing.xs,
   },
   title: {
     fontSize: fontSize.xl,
-    fontWeight: fontWeight.bold,
+    fontFamily: fonts.displayBold,
     color: colors.text,
     marginBottom: spacing.xs,
   },
   subtitle: {
     fontSize: fontSize.md,
+    fontFamily: fonts.body,
     color: colors.textSecondary,
     marginBottom: spacing.md,
   },
@@ -304,7 +358,7 @@ function createStyles(colors: import('../theme').AppColors) {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.surface,
-    borderRadius: borderRadius.md,
+    borderRadius: borderRadius.lg,
     borderWidth: 1,
     borderColor: colors.border,
     paddingHorizontal: spacing.sm,
@@ -315,22 +369,27 @@ function createStyles(colors: import('../theme').AppColors) {
     flex: 1,
     paddingVertical: Platform.OS === 'web' ? spacing.sm : spacing.sm,
     fontSize: fontSize.md,
+    fontFamily: fonts.body,
     color: colors.text,
     outlineStyle: 'none' as any,
   },
-  list: {
+  complexListBox: {
     maxHeight: 180,
     marginBottom: spacing.md,
+    ...(Platform.OS === 'web'
+      ? { overflow: 'hidden' as const, borderRadius: borderRadius.md }
+      : {}),
   },
   listContent: {
     gap: spacing.sm,
+    paddingBottom: spacing.xs,
   },
   item: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: spacing.md,
     backgroundColor: colors.surface,
-    borderRadius: borderRadius.md,
+    borderRadius: borderRadius.lg,
     borderWidth: 1,
     borderColor: colors.border,
     gap: spacing.sm,
@@ -346,6 +405,7 @@ function createStyles(colors: import('../theme').AppColors) {
   },
   itemText: {
     fontSize: fontSize.md,
+    fontFamily: fonts.bodyMedium,
     color: colors.text,
     flex: 1,
   },
@@ -361,7 +421,7 @@ function createStyles(colors: import('../theme').AppColors) {
     justifyContent: 'center',
     gap: spacing.sm,
     paddingVertical: spacing.md,
-    borderRadius: borderRadius.md,
+    borderRadius: borderRadius.lg,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surface,
@@ -376,20 +436,20 @@ function createStyles(colors: import('../theme').AppColors) {
   },
   typeLabel: {
     fontSize: fontSize.sm,
-    fontWeight: fontWeight.medium,
+    fontFamily: fonts.body,
     color: colors.textSecondary,
   },
   typeLabelSelected: {
     color: colors.warning,
-    fontWeight: fontWeight.semibold,
+    fontFamily: fonts.bodyMedium,
   },
   typeLabelBooted: {
     color: colors.danger,
-    fontWeight: fontWeight.semibold,
+    fontFamily: fonts.bodyMedium,
   },
   sectionLabel: {
     fontSize: fontSize.sm,
-    fontWeight: fontWeight.semibold,
+    fontFamily: fonts.bodyMedium,
     color: colors.textSecondary,
     marginBottom: spacing.sm,
   },
@@ -413,18 +473,19 @@ function createStyles(colors: import('../theme').AppColors) {
   },
   timeChipText: {
     fontSize: fontSize.sm,
+    fontFamily: fonts.body,
     color: colors.textSecondary,
   },
   timeChipTextSelected: {
     color: colors.primary,
-    fontWeight: fontWeight.semibold,
+    fontFamily: fonts.bodyMedium,
   },
   anonRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: colors.surface,
-    borderRadius: borderRadius.md,
+    borderRadius: borderRadius.lg,
     padding: spacing.md,
     marginBottom: spacing.md,
     borderWidth: 1,
@@ -459,11 +520,12 @@ function createStyles(colors: import('../theme').AppColors) {
   },
   anonTitle: {
     fontSize: fontSize.sm,
-    fontWeight: fontWeight.semibold,
+    fontFamily: fonts.bodyMedium,
     color: colors.text,
   },
   anonSubtitle: {
     fontSize: fontSize.xs,
+    fontFamily: fonts.body,
     color: colors.textSecondary,
     marginTop: 1,
   },
@@ -488,24 +550,40 @@ function createStyles(colors: import('../theme').AppColors) {
   },
   photoPlaceholderText: {
     fontSize: fontSize.sm,
+    fontFamily: fonts.body,
     color: colors.textSecondary,
+  },
+  submitWrap: {
+    zIndex: 50,
+    elevation: 50,
+    width: '100%',
   },
   submitButton: {
     backgroundColor: colors.danger,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: spacing.md,
-    borderRadius: borderRadius.md,
+    paddingVertical: spacing.md + 2,
+    borderRadius: borderRadius.lg,
     gap: spacing.sm,
+    minHeight: 48,
+    width: '100%',
   },
   submitButtonDisabled: {
     opacity: 0.4,
+    ...(Platform.OS === 'web' ? { cursor: 'not-allowed' as any } : {}),
+  },
+  submitHint: {
+    fontSize: fontSize.sm,
+    fontFamily: fonts.body,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: spacing.sm,
   },
   submitButtonText: {
     color: colors.textInverse,
     fontSize: fontSize.lg,
-    fontWeight: fontWeight.semibold,
+    fontFamily: fonts.display,
   },
   photoWarning: {
     position: 'absolute',
@@ -526,8 +604,79 @@ function createStyles(colors: import('../theme').AppColors) {
   photoWarningText: {
     flex: 1,
     fontSize: fontSize.sm,
-    fontWeight: fontWeight.medium,
+    fontFamily: fonts.bodyMedium,
     color: colors.text,
   },
 });
+}
+
+type ReportModalStyles = ReturnType<typeof createStyles>;
+
+function ReportSightingSubmitButton({
+  styles,
+  colors,
+  disabled,
+  submitting,
+  onSubmit,
+}: {
+  styles: ReportModalStyles;
+  colors: import('../theme').AppColors;
+  disabled: boolean;
+  submitting: boolean;
+  onSubmit: () => void;
+}) {
+  if (Platform.OS === 'web') {
+    const flat = StyleSheet.flatten([styles.submitButton, disabled && styles.submitButtonDisabled]);
+    const webStyle: CSSProperties = {
+      ...(flat as CSSProperties),
+      width: '100%',
+      borderStyle: 'solid',
+      borderWidth: 0,
+      cursor: disabled ? 'not-allowed' : 'pointer',
+      WebkitTapHighlightColor: 'transparent',
+    };
+    return (
+      <View style={styles.submitWrap}>
+        <button
+          type="button"
+          disabled={disabled}
+          style={webStyle}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (!disabled) onSubmit();
+          }}
+        >
+          {submitting ? (
+            <ActivityIndicator color={colors.textInverse} />
+          ) : (
+            <>
+              <Ionicons name="alert-circle" size={20} color={colors.textInverse} />
+              <Text style={styles.submitButtonText}>Report Sighting</Text>
+            </>
+          )}
+        </button>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.submitWrap}>
+      <Pressable
+        style={[styles.submitButton, disabled && styles.submitButtonDisabled]}
+        onPress={onSubmit}
+        disabled={disabled}
+        accessibilityState={{ disabled }}
+      >
+        {submitting ? (
+          <ActivityIndicator color={colors.textInverse} />
+        ) : (
+          <>
+            <Ionicons name="alert-circle" size={20} color={colors.textInverse} />
+            <Text style={styles.submitButtonText}>Report Sighting</Text>
+          </>
+        )}
+      </Pressable>
+    </View>
+  );
 }

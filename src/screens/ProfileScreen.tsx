@@ -6,7 +6,7 @@ import { supabase } from '../lib/supabase';
 import { complexes } from '../data/complexes';
 import { useSavedComplexes } from '../hooks/useSavedComplexes';
 import { AVATAR_COLORS, DEFAULT_AVATAR_COLOR } from '../utils/avatarColors';
-import { fontSize, fontWeight, spacing, borderRadius } from '../theme';
+import { fontSize, spacing, borderRadius, shadowCard, fonts, type AppColors } from '../theme';
 import { useTheme } from '../context/ThemeContext';
 
 interface Profile {
@@ -19,7 +19,7 @@ export default function ProfileScreen() {
   const { colors, mode, setMode } = useTheme();
   const { user, signOut } = useAuth();
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [selectedColor, setSelectedColor] = useState(DEFAULT_AVATAR_COLOR);
+  const [selectedColor, setSelectedColor] = useState<string>(DEFAULT_AVATAR_COLOR);
   const [saving, setSaving] = useState(false);
   const { savedIds, toggle: toggleComplex } = useSavedComplexes();
 
@@ -62,7 +62,7 @@ export default function ProfileScreen() {
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Avatar Color</Text>
+        <Text style={styles.sectionTitle}>Color</Text>
         <View style={styles.colorGrid}>
           {AVATAR_COLORS.map((c) => (
             <Pressable key={c} onPress={() => handleColorSelect(c)} style={styles.colorOption}>
@@ -89,7 +89,7 @@ export default function ProfileScreen() {
               <Ionicons
                 name={opt === 'light' ? 'sunny-outline' : opt === 'dark' ? 'moon-outline' : 'phone-portrait-outline'}
                 size={18}
-                color={mode === opt ? colors.primary : colors.textSecondary}
+                color={mode === opt ? colors.accent : colors.textSecondary}
               />
               <Text style={[styles.themeOptionText, mode === opt && styles.themeOptionTextActive]}>
                 {opt.charAt(0).toUpperCase() + opt.slice(1)}
@@ -114,7 +114,7 @@ export default function ProfileScreen() {
           <View style={styles.savedList}>
             {savedComplexes.map((cx) => (
               <View key={cx.id} style={styles.savedItem}>
-                <Ionicons name="notifications" size={18} color={colors.primary} />
+                <Ionicons name="notifications" size={18} color={colors.accent} />
                 <Text style={styles.savedItemText}>{cx.name}</Text>
                 <Pressable onPress={() => toggleComplex(cx.id)} hitSlop={8}>
                   <Ionicons name="close-circle" size={20} color={colors.textSecondary} />
@@ -138,7 +138,7 @@ export default function ProfileScreen() {
   );
 }
 
-function createStyles(colors: any) {
+function createStyles(colors: AppColors) {
   return StyleSheet.create({
   container: {
     flex: 1,
@@ -163,31 +163,35 @@ function createStyles(colors: any) {
   },
   avatarText: {
     fontSize: fontSize.xxl,
-    fontWeight: fontWeight.bold,
+    fontFamily: fonts.displayBold,
     color: colors.textInverse,
   },
   name: {
     fontSize: fontSize.xl,
-    fontWeight: fontWeight.bold,
+    fontFamily: fonts.displayBold,
     color: colors.text,
   },
   email: {
     fontSize: fontSize.sm,
+    fontFamily: fonts.body,
     color: colors.textSecondary,
     marginTop: spacing.xs,
   },
   section: {
     backgroundColor: colors.background,
-    borderRadius: borderRadius.md,
+    borderRadius: borderRadius.lg,
     padding: spacing.md,
     marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    ...shadowCard,
   },
   sectionTitle: {
     fontSize: fontSize.sm,
-    fontWeight: fontWeight.semibold,
+    fontFamily: fonts.bodyMedium,
     color: colors.textSecondary,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 0.6,
     marginBottom: 2,
   },
   themeToggle: {
@@ -202,28 +206,30 @@ function createStyles(colors: any) {
     justifyContent: 'center',
     gap: spacing.xs,
     paddingVertical: spacing.sm,
-    borderRadius: borderRadius.md,
+    borderRadius: borderRadius.lg,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surface,
   },
   themeOptionActive: {
-    borderColor: colors.primary,
-    backgroundColor: colors.infoTint,
+    borderColor: colors.accent,
+    backgroundColor: colors.accentSoft,
   },
   themeOptionText: {
     fontSize: fontSize.sm,
-    fontWeight: fontWeight.medium,
+    fontFamily: fonts.body,
     color: colors.textSecondary,
   },
   themeOptionTextActive: {
-    color: colors.primary,
-    fontWeight: fontWeight.semibold,
+    color: colors.text,
+    fontFamily: fonts.bodyMedium,
   },
   sectionSubtitle: {
     fontSize: fontSize.xs,
+    fontFamily: fonts.body,
     color: colors.textSecondary,
     marginBottom: spacing.sm,
+    lineHeight: 18,
   },
   colorGrid: {
     flexDirection: 'row',
@@ -242,6 +248,7 @@ function createStyles(colors: any) {
   },
   savingText: {
     fontSize: fontSize.xs,
+    fontFamily: fonts.body,
     color: colors.textSecondary,
     marginTop: spacing.xs,
     textAlign: 'center',
@@ -253,13 +260,15 @@ function createStyles(colors: any) {
   },
   emptyText: {
     fontSize: fontSize.md,
-    fontWeight: fontWeight.medium,
+    fontFamily: fonts.bodyMedium,
     color: colors.text,
   },
   emptySubtext: {
     fontSize: fontSize.sm,
+    fontFamily: fonts.body,
     color: colors.textSecondary,
     textAlign: 'center',
+    lineHeight: 20,
   },
   savedList: {
     gap: spacing.sm,
@@ -268,12 +277,16 @@ function createStyles(colors: any) {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
-    paddingVertical: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.sm,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   savedItemText: {
     fontSize: fontSize.md,
+    fontFamily: fonts.bodyMedium,
     color: colors.text,
     flex: 1,
   },
@@ -289,11 +302,12 @@ function createStyles(colors: any) {
   },
   menuItemTextDanger: {
     fontSize: fontSize.md,
-    fontWeight: fontWeight.medium,
+    fontFamily: fonts.bodyMedium,
     color: colors.danger,
   },
   version: {
     fontSize: fontSize.xs,
+    fontFamily: fonts.body,
     color: colors.textSecondary,
     textAlign: 'center',
     marginTop: spacing.lg,

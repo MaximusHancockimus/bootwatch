@@ -1,52 +1,83 @@
-export const lightColors = {
-  primary: '#1A73E8',
-  primaryDark: '#1557B0',
-  danger: '#DC2626',
-  dangerLight: '#FEE2E2',
-  warning: '#F59E0B',
-  warningLight: '#FEF3C7',
-  safe: '#16A34A',
-  safeLight: '#DCFCE7',
-  neutral: '#6B7280',
-  neutralLight: '#F3F4F6',
-  background: '#FFFFFF',
-  surface: '#F9FAFB',
-  text: '#111827',
-  textSecondary: '#6B7280',
-  textInverse: '#FFFFFF',
-  border: '#E5E7EB',
-  tabBarBackground: '#FFFFFF',
-  tabBarActive: '#1A73E8',
-  tabBarInactive: '#9CA3AF',
-  infoTint: '#EFF6FF',
-} as const;
-
-export const darkColors: typeof lightColors = {
-  primary: '#5B9CF6',
-  primaryDark: '#3B82F6',
-  danger: '#EF4444',
-  dangerLight: '#451A1A',
-  warning: '#FBBF24',
-  warningLight: '#422006',
-  safe: '#34D399',
-  safeLight: '#064E3B',
-  neutral: '#9CA3AF',
-  neutralLight: '#374151',
-  background: '#111827',
-  surface: '#1F2937',
-  text: '#F9FAFB',
-  textSecondary: '#9CA3AF',
-  textInverse: '#111827',
-  border: '#374151',
-  tabBarBackground: '#1F2937',
-  tabBarActive: '#5B9CF6',
-  tabBarInactive: '#6B7280',
-  infoTint: '#1E3A5F',
+export type AppColors = {
+  primary: string;
+  primaryDark: string;
+  accent: string;
+  accentSoft: string;
+  danger: string;
+  dangerLight: string;
+  warning: string;
+  warningLight: string;
+  safe: string;
+  safeLight: string;
+  neutral: string;
+  neutralLight: string;
+  background: string;
+  surface: string;
+  surfaceMuted: string;
+  text: string;
+  textSecondary: string;
+  textInverse: string;
+  border: string;
+  tabBarBackground: string;
+  tabBarActive: string;
+  tabBarInactive: string;
+  infoTint: string;
 };
 
-export type AppColors = typeof lightColors;
+export const lightColors: AppColors = {
+  primary: '#0F766E',
+  primaryDark: '#115E59',
+  /** Brand “watch” highlight — tabs, timer accents, feed energy */
+  accent: '#D97706',
+  accentSoft: '#FFFBEB',
+  danger: '#DC2626',
+  dangerLight: '#FEE2E2',
+  warning: '#D97706',
+  warningLight: '#FEF3C7',
+  /** Same as heat map “low” (HEAT_COLORS.low) — map pins + badges stay consistent */
+  safe: '#16A34A',
+  safeLight: '#DCFCE7',
+  neutral: '#64748B',
+  neutralLight: '#F1F5F9',
+  background: '#FAFAF8',
+  surface: '#F1F0ED',
+  surfaceMuted: '#E7E5E1',
+  text: '#0F172A',
+  textSecondary: '#64748B',
+  textInverse: '#FFFFFF',
+  border: '#E2E8F0',
+  tabBarBackground: 'rgba(255,255,255,0.92)',
+  tabBarActive: '#D97706',
+  tabBarInactive: '#94A3B8',
+  infoTint: '#F0FDFA',
+};
 
-// Keep static export for backward compat during migration; prefer useTheme()
+export const darkColors: AppColors = {
+  primary: '#2DD4BF',
+  primaryDark: '#14B8A6',
+  accent: '#FBBF24',
+  accentSoft: '#422006',
+  danger: '#F87171',
+  dangerLight: '#450A0A',
+  warning: '#FBBF24',
+  warningLight: '#422006',
+  safe: '#16A34A',
+  safeLight: '#14532D',
+  neutral: '#94A3B8',
+  neutralLight: '#334155',
+  background: '#0C1014',
+  surface: '#151B22',
+  surfaceMuted: '#1C242D',
+  text: '#F8FAFC',
+  textSecondary: '#94A3B8',
+  textInverse: '#0F172A',
+  border: '#2D3748',
+  tabBarBackground: 'rgba(15, 23, 42, 0.88)',
+  tabBarActive: '#FBBF24',
+  tabBarInactive: '#64748B',
+  infoTint: '#134E4A',
+};
+
 export const colors = lightColors;
 
 export const spacing = {
@@ -65,6 +96,8 @@ export const fontSize = {
   lg: 18,
   xl: 24,
   xxl: 32,
+  /** Hero timer digits */
+  display: 56,
 } as const;
 
 export const fontWeight = {
@@ -74,9 +107,15 @@ export const fontWeight = {
   bold: '700' as const,
 };
 
+/** Tighter on chrome, rounder on content */
 export const borderRadius = {
-  sm: 6,
-  md: 10,
-  lg: 16,
+  xs: 4,
+  sm: 8,
+  md: 12,
+  lg: 18,
+  xl: 24,
   full: 9999,
 } as const;
+
+export { fonts } from './fonts';
+export { shadowCard, shadowFloat, shadowSoft } from './shadows';

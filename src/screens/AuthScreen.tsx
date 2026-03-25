@@ -3,7 +3,7 @@ import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, StyleShee
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
-import { fontSize, fontWeight, spacing, borderRadius, type AppColors } from '../theme';
+import { fontSize, spacing, borderRadius, shadowCard, type AppColors, fonts } from '../theme';
 
 export default function AuthScreen() {
   const { colors } = useTheme();
@@ -64,7 +64,7 @@ export default function AuthScreen() {
   return (
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={styles.card}>
-        <Ionicons name="shield-checkmark" size={48} color={colors.primary} />
+        <Ionicons name="shield-checkmark" size={48} color={colors.accent} />
         <Text style={styles.title}>BootWatch</Text>
         <Text style={styles.subtitle}>
           {isSignUp ? 'Create an account to report sightings' : 'Sign in to your account'}
@@ -175,26 +175,26 @@ function createStyles(colors: AppColors) {
     },
     card: {
       backgroundColor: colors.background,
-      borderRadius: borderRadius.lg,
+      borderRadius: borderRadius.xl,
       padding: spacing.xl,
       alignItems: 'center',
       gap: spacing.md,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.08,
-      shadowRadius: 8,
-      elevation: 4,
+      borderWidth: 1,
+      borderColor: colors.border,
+      ...shadowCard,
     },
     title: {
       fontSize: fontSize.xxl,
-      fontWeight: fontWeight.bold,
+      fontFamily: fonts.displayBold,
       color: colors.text,
     },
     subtitle: {
       fontSize: fontSize.md,
+      fontFamily: fonts.body,
       color: colors.textSecondary,
       textAlign: 'center',
       marginBottom: spacing.sm,
+      lineHeight: 22,
     },
     oauthButton: {
       width: '100%',
@@ -203,14 +203,14 @@ function createStyles(colors: AppColors) {
       justifyContent: 'center',
       gap: spacing.sm,
       paddingVertical: spacing.md,
-      borderRadius: borderRadius.md,
+      borderRadius: borderRadius.lg,
       borderWidth: 1,
       borderColor: colors.border,
       backgroundColor: colors.surface,
     },
     oauthButtonText: {
       fontSize: fontSize.md,
-      fontWeight: fontWeight.medium,
+      fontFamily: fonts.bodyMedium,
       color: colors.text,
     },
     appleButton: {
@@ -233,6 +233,7 @@ function createStyles(colors: AppColors) {
     },
     dividerText: {
       fontSize: fontSize.sm,
+      fontFamily: fonts.body,
       color: colors.textSecondary,
     },
     input: {
@@ -240,10 +241,11 @@ function createStyles(colors: AppColors) {
       backgroundColor: colors.surface,
       borderWidth: 1,
       borderColor: colors.border,
-      borderRadius: borderRadius.md,
+      borderRadius: borderRadius.lg,
       paddingHorizontal: spacing.md,
       paddingVertical: spacing.md,
       fontSize: fontSize.md,
+      fontFamily: fonts.body,
       color: colors.text,
     },
     errorBox: {
@@ -252,25 +254,26 @@ function createStyles(colors: AppColors) {
       gap: spacing.sm,
       backgroundColor: colors.dangerLight,
       padding: spacing.sm,
-      borderRadius: borderRadius.sm,
+      borderRadius: borderRadius.md,
       width: '100%',
     },
     errorText: {
       fontSize: fontSize.sm,
+      fontFamily: fonts.body,
       color: colors.danger,
       flex: 1,
     },
     primaryButton: {
       width: '100%',
       backgroundColor: colors.primary,
-      paddingVertical: spacing.md,
-      borderRadius: borderRadius.md,
+      paddingVertical: spacing.md + 2,
+      borderRadius: borderRadius.lg,
       alignItems: 'center',
     },
     primaryButtonText: {
       color: colors.textInverse,
       fontSize: fontSize.lg,
-      fontWeight: fontWeight.semibold,
+      fontFamily: fonts.display,
     },
     linkButton: {
       paddingVertical: spacing.sm,
@@ -278,7 +281,7 @@ function createStyles(colors: AppColors) {
     linkText: {
       color: colors.primary,
       fontSize: fontSize.sm,
-      fontWeight: fontWeight.medium,
+      fontFamily: fonts.bodyMedium,
     },
   });
 }
