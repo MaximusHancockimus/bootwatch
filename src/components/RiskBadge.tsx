@@ -1,7 +1,8 @@
 import { StyleSheet, Text, View } from 'react-native';
 import { RiskLevel } from '../types/complex';
 import { RISK_CONFIG } from '../utils/risk';
-import { borderRadius, fontSize, fontWeight, spacing } from '../theme';
+import { borderRadius, fontSize, spacing } from '../theme';
+import { fonts } from '../theme/fonts';
 
 interface Props {
   level: RiskLevel;
@@ -34,6 +35,6 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: fontSize.xs,
-    fontWeight: fontWeight.semibold,
+    fontFamily: fonts.bodyMedium,
   },
 });

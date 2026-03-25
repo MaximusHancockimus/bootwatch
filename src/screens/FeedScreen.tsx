@@ -1,17 +1,61 @@
-import React, { useCallback, useState } from 'react';
-import { ActivityIndicator, FlatList, Image, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Animated,
+  FlatList,
+  Image,
+  Platform,
+  Pressable,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { useSightings } from '../hooks/useSightings';
 import { Sighting } from '../types/sighting';
 import { timeAgo, isWithinHours } from '../utils/time';
 import ReportSightingModal from '../components/ReportSightingModal';
+import ScreenGradientBackdrop from '../components/ScreenGradientBackdrop';
 import { DEFAULT_AVATAR_COLOR } from '../utils/avatarColors';
-import { fontSize, fontWeight, spacing, borderRadius } from '../theme';
+import { fontSize, spacing, borderRadius, shadowCard } from '../theme';
+import { fonts } from '../theme/fonts';
 import { useTheme } from '../context/ThemeContext';
+
+const MASCOT_EMPTY = require('../../assets/timer-on-watch.png');
+
+function PulseBadge({
+  active,
+  style,
+  children,
+}: {
+  active: boolean;
+  style?: object;
+  children: React.ReactNode;
+}) {
+  const opacity = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    if (!active) {
+      opacity.setValue(1);
+      return;
+    }
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(opacity, { toValue: 0.55, duration: 700, useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 1, duration: 700, useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [active, opacity]);
+  return <Animated.View style={[style, active && { opacity }]}>{children}</Animated.View>;
+}
 
 export default function FeedScreen() {
   const { colors } = useTheme();
   const styles = createStyles(colors);
+  const tabBarHeight = useBottomTabBarHeight();
   const { sightings, loading, error, refresh } = useSightings();
   const [reportVisible, setReportVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -29,66 +73,85 @@ export default function FeedScreen() {
 
   if (loading && sightings.length === 0) {
     return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color={colors.primary} />
-      </View>
+      <ScreenGradientBackdrop>
+        <View style={styles.centered}>
+          <ActivityIndicator size="large" color={colors.accent} />
+        </View>
+      </ScreenGradientBackdrop>
     );
   }
 
   if (error && !loading) {
     return (
-      <View style={styles.container}>
-        <View style={styles.errorContainer}>
-          <Ionicons name="cloud-offline-outline" size={48} color={colors.danger} />
-          <Text style={styles.errorTitle}>Couldn't load feed</Text>
-          <Text style={styles.errorSubtitle}>{error}</Text>
-          <Pressable style={styles.retryButton} onPress={refresh}>
-            <Ionicons name="refresh" size={18} color={colors.textInverse} />
-            <Text style={styles.retryText}>Retry</Text>
-          </Pressable>
+      <ScreenGradientBackdrop>
+        <View style={styles.container}>
+          <View style={styles.errorContainer}>
+            <Ionicons name="cloud-offline-outline" size={48} color={colors.danger} />
+            <Text style={styles.errorTitle}>Couldn't load feed</Text>
+            <Text style={styles.errorSubtitle}>{error}</Text>
+            <Pressable style={styles.retryButton} onPress={refresh}>
+              <Ionicons name="refresh" size={18} color={colors.textInverse} />
+              <Text style={styles.retryText}>Retry</Text>
+            </Pressable>
+          </View>
         </View>
-      </View>
+      </ScreenGradientBackdrop>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <FlatList
+    <ScreenGradientBackdrop>
+      <View style={styles.container}>
+        <FlatList
+        style={styles.list}
         data={sightings}
         keyExtractor={(item) => item.id}
         renderItem={renderSighting}
         contentContainerStyle={sightings.length === 0 ? styles.emptyContainer : styles.listContent}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
-        ListHeaderComponent={sightings.length > 0 ? (
-          <View style={styles.privacyBanner}>
-            <Ionicons name="shield-checkmark" size={16} color={colors.primary} />
-            <Text style={styles.privacyText}>
-              Your reports help the community. Anonymous posting is always available. We never share your identity with property managers or booting companies.
-            </Text>
-          </View>
-        ) : null}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent} />}
+        ListHeaderComponent={
+          sightings.length > 0 ? (
+            <View style={styles.privacyBanner}>
+              <View style={styles.privacyIconWrap}>
+                <Ionicons name="shield-checkmark" size={18} color={colors.primary} />
+              </View>
+              <Text style={styles.privacyText}>
+                Your reports help the community. Anonymous posting is always available. We never share your identity
+                with property managers or booting companies.
+              </Text>
+            </View>
+          ) : null
+        }
         ListEmptyComponent={
           <View style={styles.emptyState}>
-            <Ionicons name="eye-off-outline" size={48} color={colors.textSecondary} />
-            <Text style={styles.emptyTitle}>No sightings yet</Text>
+            <View style={styles.emptyMascotRing}>
+              <Image
+                source={MASCOT_EMPTY}
+                style={styles.emptyMascot}
+                resizeMode="contain"
+                accessibilityLabel="BootWatch scout mascot"
+              />
+            </View>
+            <Text style={styles.emptyTitle}>All quiet</Text>
             <Text style={styles.emptySubtitle}>
-              Be the first to report a boot truck! Tap the button below to help your community.
+              No boot trucks on the radar yet. When you spot one, tap + and the crew will see it live.
             </Text>
           </View>
         }
       />
 
-      {/* FAB */}
-      <Pressable style={styles.fab} onPress={() => setReportVisible(true)}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Report a sighting"
+        style={[styles.fab, { bottom: tabBarHeight + spacing.md }]}
+        onPress={() => setReportVisible(true)}
+      >
         <Ionicons name="add" size={28} color={colors.textInverse} />
       </Pressable>
 
-      <ReportSightingModal
-        visible={reportVisible}
-        onClose={() => setReportVisible(false)}
-        onSuccess={refresh}
-      />
-    </View>
+      <ReportSightingModal visible={reportVisible} onClose={() => setReportVisible(false)} onSuccess={refresh} />
+      </View>
+    </ScreenGradientBackdrop>
   );
 }
 
@@ -99,30 +162,35 @@ const SightingCard = React.memo(function SightingCard({
 }: {
   item: Sighting;
   styles: ReturnType<typeof createStyles>;
-  colors: any;
+  colors: import('../theme').AppColors;
 }) {
   const isActive = isWithinHours(item.created_at, 0.5);
   const isRecent = !isActive && isWithinHours(item.created_at, 2);
   const isStale = !isActive && !isRecent;
   const name = item.display_name ?? 'Anonymous';
   const initial = name.charAt(0).toUpperCase();
+  const isBooted = item.report_type === 'booted';
 
-  const cardStyle = isActive ? styles.cardActive : isRecent ? styles.cardRecent : undefined;
+  const cardVariant = isBooted
+    ? styles.cardBooted
+    : isActive
+      ? styles.cardActive
+      : isRecent
+        ? styles.cardRecent
+        : styles.cardStale;
+
+  const avatarBg = isBooted ? colors.danger : item.is_anonymous ? colors.neutral : item.avatar_color ?? DEFAULT_AVATAR_COLOR;
+
+  const avatarIcon: React.ComponentProps<typeof Ionicons>['name'] | null = isBooted
+    ? 'lock-closed'
+    : item.is_anonymous
+      ? 'shield-checkmark'
+      : null;
+
   const tsStyle = isActive ? styles.timestampActive : isRecent ? styles.timestampRecent : undefined;
-  const userColor = item.avatar_color ?? DEFAULT_AVATAR_COLOR;
-  const isAnon = item.is_anonymous;
-
-  const avatarBg = item.report_type === 'booted' ? colors.danger
-    : isAnon ? colors.neutral
-    : userColor;
-
-  const avatarIcon: React.ComponentProps<typeof Ionicons>['name'] | null =
-    item.report_type === 'booted' ? 'lock-closed'
-    : isAnon ? 'shield-checkmark'
-    : null;
 
   return (
-    <View style={[styles.card, cardStyle]}>
+    <View style={[styles.card, cardVariant]}>
       <View style={styles.cardHeader}>
         <View style={[styles.avatar, { backgroundColor: avatarBg }]}>
           {avatarIcon ? (
@@ -134,226 +202,275 @@ const SightingCard = React.memo(function SightingCard({
         <View style={styles.cardHeaderText}>
           <Text style={[styles.narrative, isStale && styles.narrativeStale]}>
             <Text style={styles.narrativeName}>{name}</Text>
-            {item.report_type === 'booted' ? ' got booted at ' : ' spotted a booter at '}
+            {isBooted ? ' got booted at ' : ' spotted a booter at '}
             <Text style={[styles.narrativeComplex, isStale && styles.narrativeComplexStale]}>{item.complex_name}</Text>
           </Text>
-          <Text style={[styles.timestamp, tsStyle]}>
-            {timeAgo(item.created_at)}
-          </Text>
+          <Text style={[styles.timestamp, tsStyle]}>{timeAgo(item.created_at)}</Text>
         </View>
         {isActive && (
-          <View style={styles.activeBadge}>
-            <Text style={styles.activeBadgeText}>ACTIVE</Text>
-          </View>
+          <PulseBadge active style={styles.activeBadge}>
+            <Text style={styles.activeBadgeText}>LIVE</Text>
+          </PulseBadge>
         )}
-        {isRecent && (
+        {isRecent && !isActive && (
           <View style={styles.recentBadge}>
             <Text style={styles.recentBadgeText}>RECENT</Text>
           </View>
         )}
       </View>
-      {item.photo_url && (
-        <Image source={{ uri: item.photo_url }} style={styles.photo} />
-      )}
+      {item.photo_url && <Image source={{ uri: item.photo_url }} style={styles.photo} />}
     </View>
   );
 });
 
-function createStyles(colors: any) {
+function createStyles(colors: import('../theme').AppColors) {
   return StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.surface,
-  },
-  centered: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: colors.surface,
-  },
-  listContent: {
-    padding: spacing.md,
-    gap: spacing.sm,
-  },
-  privacyBanner: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: spacing.sm,
-    backgroundColor: colors.infoTint,
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
-    marginBottom: spacing.xs,
-  },
-  privacyText: {
-    flex: 1,
-    fontSize: fontSize.xs,
-    color: colors.primary,
-    lineHeight: 18,
-  },
-  card: {
-    backgroundColor: colors.background,
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  cardActive: {
-    borderColor: colors.danger,
-    borderLeftWidth: 3,
-  },
-  cardRecent: {
-    borderColor: colors.warning,
-    borderLeftWidth: 3,
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  avatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.neutral,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: {
-    fontSize: fontSize.sm,
-    fontWeight: fontWeight.bold,
-    color: colors.textInverse,
-  },
-  cardHeaderText: {
-    flex: 1,
-  },
-  narrative: {
-    fontSize: fontSize.md,
-    color: colors.text,
-    lineHeight: 20,
-  },
-  narrativeName: {
-    fontWeight: fontWeight.bold,
-  },
-  narrativeComplex: {
-    fontWeight: fontWeight.semibold,
-    color: colors.primary,
-  },
-  narrativeStale: {
-    opacity: 0.6,
-  },
-  narrativeComplexStale: {
-    color: colors.textSecondary,
-  },
-  timestamp: {
-    fontSize: fontSize.xs,
-    color: colors.textSecondary,
-  },
-  timestampActive: {
-    color: colors.danger,
-    fontWeight: fontWeight.medium,
-  },
-  timestampRecent: {
-    color: colors.warning,
-    fontWeight: fontWeight.medium,
-  },
-  activeBadge: {
-    backgroundColor: colors.dangerLight,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
-    borderRadius: borderRadius.full,
-  },
-  activeBadgeText: {
-    fontSize: fontSize.xs,
-    fontWeight: fontWeight.bold,
-    color: colors.danger,
-    letterSpacing: 0.5,
-  },
-  recentBadge: {
-    backgroundColor: colors.warningLight,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
-    borderRadius: borderRadius.full,
-  },
-  recentBadgeText: {
-    fontSize: fontSize.xs,
-    fontWeight: fontWeight.bold,
-    color: colors.warning,
-    letterSpacing: 0.5,
-  },
-  photo: {
-    width: '100%',
-    height: 160,
-    borderRadius: borderRadius.sm,
-    marginTop: spacing.sm,
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  emptyState: {
-    alignItems: 'center',
-    padding: spacing.xl,
-    gap: spacing.sm,
-  },
-  emptyTitle: {
-    fontSize: fontSize.xl,
-    fontWeight: fontWeight.bold,
-    color: colors.text,
-  },
-  emptySubtitle: {
-    fontSize: fontSize.md,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 22,
-  },
-  fab: {
-    position: 'absolute',
-    bottom: spacing.lg,
-    right: spacing.lg,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: colors.danger,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: spacing.xl,
-    gap: spacing.md,
-  },
-  errorTitle: {
-    fontSize: fontSize.xl,
-    fontWeight: fontWeight.bold,
-    color: colors.text,
-  },
-  errorSubtitle: {
-    fontSize: fontSize.md,
-    color: colors.textSecondary,
-    textAlign: 'center',
-  },
-  retryButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    backgroundColor: colors.primary,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.lg,
-    borderRadius: borderRadius.md,
-    marginTop: spacing.sm,
-  },
-  retryText: {
-    color: colors.textInverse,
-    fontSize: fontSize.md,
-    fontWeight: fontWeight.semibold,
-  },
-});
+    container: {
+      flex: 1,
+      backgroundColor: 'transparent',
+    },
+    list: {
+      flex: 1,
+      backgroundColor: 'transparent',
+    },
+    centered: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: 'transparent',
+    },
+    listContent: {
+      padding: spacing.md,
+      gap: spacing.md,
+    },
+    privacyBanner: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: spacing.md,
+      backgroundColor: colors.infoTint,
+      borderRadius: borderRadius.lg,
+      padding: spacing.md,
+      marginBottom: spacing.sm,
+      borderWidth: 1,
+      borderColor: colors.primary,
+      ...shadowCard,
+    },
+    privacyIconWrap: {
+      width: 36,
+      height: 36,
+      borderRadius: borderRadius.sm,
+      backgroundColor: colors.background,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    privacyText: {
+      flex: 1,
+      fontSize: fontSize.sm,
+      fontFamily: fonts.body,
+      color: colors.text,
+      lineHeight: 20,
+    },
+    card: {
+      backgroundColor: colors.background,
+      borderRadius: borderRadius.lg,
+      padding: spacing.md,
+      borderWidth: 1,
+      borderColor: colors.border,
+      ...shadowCard,
+    },
+    cardStale: {
+      borderLeftWidth: 3,
+      borderLeftColor: colors.border,
+    },
+    cardActive: {
+      borderLeftWidth: 4,
+      borderLeftColor: colors.danger,
+      backgroundColor: colors.dangerLight,
+    },
+    cardRecent: {
+      borderLeftWidth: 4,
+      borderLeftColor: colors.accent,
+      backgroundColor: colors.accentSoft,
+    },
+    cardBooted: {
+      borderLeftWidth: 4,
+      borderLeftColor: colors.danger,
+      backgroundColor: colors.dangerLight,
+    },
+    cardHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+    },
+    avatar: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: colors.neutral,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    avatarText: {
+      fontSize: fontSize.md,
+      fontFamily: fonts.display,
+      color: colors.textInverse,
+    },
+    cardHeaderText: {
+      flex: 1,
+    },
+    narrative: {
+      fontSize: fontSize.md,
+      fontFamily: fonts.body,
+      color: colors.text,
+      lineHeight: 22,
+    },
+    narrativeName: {
+      fontFamily: fonts.bodyMedium,
+    },
+    narrativeComplex: {
+      fontFamily: fonts.bodyBold,
+      color: colors.primary,
+    },
+    narrativeStale: {
+      opacity: 0.65,
+    },
+    narrativeComplexStale: {
+      color: colors.textSecondary,
+    },
+    timestamp: {
+      fontSize: fontSize.xs,
+      fontFamily: fonts.body,
+      color: colors.textSecondary,
+      marginTop: 4,
+    },
+    timestampActive: {
+      color: colors.danger,
+      fontFamily: fonts.bodyMedium,
+    },
+    timestampRecent: {
+      color: colors.accent,
+      fontFamily: fonts.bodyMedium,
+    },
+    activeBadge: {
+      backgroundColor: colors.danger,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: 4,
+      borderRadius: borderRadius.sm,
+    },
+    activeBadgeText: {
+      fontSize: 10,
+      fontFamily: fonts.displayBold,
+      color: colors.textInverse,
+      letterSpacing: 1,
+    },
+    recentBadge: {
+      backgroundColor: colors.accent,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: 4,
+      borderRadius: borderRadius.sm,
+    },
+    recentBadgeText: {
+      fontSize: 10,
+      fontFamily: fonts.displayBold,
+      color: colors.textInverse,
+      letterSpacing: 0.8,
+    },
+    photo: {
+      width: '100%',
+      height: 160,
+      borderRadius: borderRadius.md,
+      marginTop: spacing.sm,
+    },
+    emptyContainer: {
+      flexGrow: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      paddingHorizontal: spacing.lg,
+    },
+    emptyState: {
+      alignItems: 'center',
+      paddingVertical: spacing.xxl,
+      gap: spacing.md,
+      maxWidth: 320,
+    },
+    emptyMascotRing: {
+      width: 140,
+      height: 140,
+      borderRadius: 70,
+      backgroundColor: colors.accentSoft,
+      borderWidth: 2,
+      borderColor: colors.accent,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: spacing.sm,
+    },
+    emptyMascot: {
+      width: 100,
+      height: 100,
+    },
+    emptyTitle: {
+      fontSize: fontSize.xxl,
+      fontFamily: fonts.displayBold,
+      color: colors.text,
+    },
+    emptySubtitle: {
+      fontSize: fontSize.md,
+      fontFamily: fonts.body,
+      color: colors.textSecondary,
+      textAlign: 'center',
+      lineHeight: 24,
+    },
+    fab: {
+      position: 'absolute',
+      right: spacing.lg,
+      width: 58,
+      height: 58,
+      borderRadius: 29,
+      backgroundColor: colors.danger,
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 20,
+      ...(Platform.OS === 'web' ? { cursor: 'pointer' as const } : {}),
+      shadowColor: colors.danger,
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.45,
+      shadowRadius: 12,
+      elevation: 10,
+      borderWidth: 2,
+      borderColor: colors.background,
+    },
+    errorContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: spacing.xl,
+      gap: spacing.md,
+    },
+    errorTitle: {
+      fontSize: fontSize.xl,
+      fontFamily: fonts.display,
+      color: colors.text,
+    },
+    errorSubtitle: {
+      fontSize: fontSize.md,
+      fontFamily: fonts.body,
+      color: colors.textSecondary,
+      textAlign: 'center',
+    },
+    retryButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+      backgroundColor: colors.primary,
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.lg,
+      borderRadius: borderRadius.md,
+      marginTop: spacing.sm,
+    },
+    retryText: {
+      color: colors.textInverse,
+      fontSize: fontSize.md,
+      fontFamily: fonts.bodyMedium,
+    },
+  });
 }

@@ -1,8 +1,8 @@
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Dimensions, FlatList, Pressable, StyleSheet, Text, View, ViewToken } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
-import { fontSize, fontWeight, spacing, borderRadius } from '../theme';
+import { fontSize, spacing, borderRadius, shadowCard, fonts, type AppColors } from '../theme';
 
 const { width } = Dimensions.get('window');
 
@@ -15,34 +15,38 @@ interface Slide {
   features?: { icon: React.ComponentProps<typeof Ionicons>['name']; label: string; desc: string }[];
 }
 
-const SLIDES: Slide[] = [
-  {
-    id: '1',
-    icon: 'shield-checkmark',
-    iconColor: '#1A73E8',
-    title: 'Welcome to BootWatch',
-    subtitle: 'The community-powered app that protects students from predatory parking enforcement in Rexburg.',
-  },
-  {
-    id: '2',
-    icon: 'bulb-outline',
-    iconColor: '#F59E0B',
-    title: 'How It Works',
-    subtitle: 'Three tools to keep you safe:',
-    features: [
-      { icon: 'map', label: 'Risk Map', desc: 'See which complexes are high-risk before you park' },
-      { icon: 'timer', label: 'Parking Timer', desc: 'Get alerts before your time expires' },
-      { icon: 'alert-circle', label: 'Live Feed', desc: 'Real-time boot truck sightings from the community' },
-    ],
-  },
-  {
-    id: '3',
-    icon: 'people',
-    iconColor: '#16A34A',
-    title: 'Stronger Together',
-    subtitle: 'Report sightings, follow your complex, and help fellow students avoid getting booted. Your reports are anonymous if you want them to be.',
-  },
-];
+function getSlides(colors: AppColors): Slide[] {
+  return [
+    {
+      id: '1',
+      icon: 'shield-checkmark',
+      iconColor: colors.accent,
+      title: 'Welcome to BootWatch',
+      subtitle:
+        'The community-powered app that protects students from predatory parking enforcement in Rexburg.',
+    },
+    {
+      id: '2',
+      icon: 'bulb-outline',
+      iconColor: colors.primary,
+      title: 'How It Works',
+      subtitle: 'Three tools to keep you safe:',
+      features: [
+        { icon: 'map', label: 'Risk Map', desc: 'See which complexes are high-risk before you park' },
+        { icon: 'timer', label: 'Parking Timer', desc: 'Get alerts before your time expires' },
+        { icon: 'alert-circle', label: 'Live Feed', desc: 'Real-time boot truck sightings from the community' },
+      ],
+    },
+    {
+      id: '3',
+      icon: 'people',
+      iconColor: colors.safe,
+      title: 'Stronger Together',
+      subtitle:
+        'Report sightings, follow your complex, and help fellow students avoid getting booted. Your reports are anonymous if you want them to be.',
+    },
+  ];
+}
 
 interface Props {
   onComplete: () => void;
@@ -50,6 +54,7 @@ interface Props {
 
 export default function OnboardingScreen({ onComplete }: Props) {
   const { colors } = useTheme();
+  const slides = useMemo(() => getSlides(colors), [colors]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const flatListRef = useRef<FlatList>(null);
   const styles = createStyles(colors);
@@ -60,14 +65,14 @@ export default function OnboardingScreen({ onComplete }: Props) {
     }
   }).current;
 
-  const getItemLayout = (_: any, index: number) => ({
+  const getItemLayout = (_: unknown, index: number) => ({
     length: width,
     offset: width * index,
     index,
   });
 
   function handleNext() {
-    if (currentIndex < SLIDES.length - 1) {
+    if (currentIndex < slides.length - 1) {
       flatListRef.current?.scrollToIndex({ index: currentIndex + 1, animated: true });
     } else {
       onComplete();
@@ -77,7 +82,7 @@ export default function OnboardingScreen({ onComplete }: Props) {
   function renderSlide({ item }: { item: Slide }) {
     return (
       <View style={styles.slide}>
-        <View style={[styles.iconCircle, { backgroundColor: item.iconColor + '18' }]}>
+        <View style={[styles.iconCircle, { backgroundColor: item.iconColor + '22' }]}>
           <Ionicons name={item.icon} size={56} color={item.iconColor} />
         </View>
         <Text style={styles.slideTitle}>{item.title}</Text>
@@ -88,7 +93,7 @@ export default function OnboardingScreen({ onComplete }: Props) {
             {item.features.map((f) => (
               <View key={f.label} style={styles.featureRow}>
                 <View style={styles.featureIcon}>
-                  <Ionicons name={f.icon} size={22} color={colors.primary} />
+                  <Ionicons name={f.icon} size={22} color={colors.accent} />
                 </View>
                 <View style={styles.featureText}>
                   <Text style={styles.featureLabel}>{f.label}</Text>
@@ -102,13 +107,13 @@ export default function OnboardingScreen({ onComplete }: Props) {
     );
   }
 
-  const isLast = currentIndex === SLIDES.length - 1;
+  const isLast = currentIndex === slides.length - 1;
 
   return (
     <View style={styles.container}>
       <FlatList
         ref={flatListRef}
-        data={SLIDES}
+        data={slides}
         renderItem={renderSlide}
         keyExtractor={(item) => item.id}
         horizontal
@@ -121,7 +126,7 @@ export default function OnboardingScreen({ onComplete }: Props) {
 
       <View style={styles.footer}>
         <View style={styles.dots}>
-          {SLIDES.map((_, i) => (
+          {slides.map((_, i) => (
             <View key={i} style={[styles.dot, i === currentIndex && styles.dotActive]} />
           ))}
         </View>
@@ -141,7 +146,7 @@ export default function OnboardingScreen({ onComplete }: Props) {
   );
 }
 
-function createStyles(colors: any) {
+function createStyles(colors: AppColors) {
   return StyleSheet.create({
     container: {
       flex: 1,
@@ -164,13 +169,14 @@ function createStyles(colors: any) {
     },
     slideTitle: {
       fontSize: fontSize.xxl,
-      fontWeight: fontWeight.bold,
+      fontFamily: fonts.displayBold,
       color: colors.text,
       textAlign: 'center',
       marginBottom: spacing.md,
     },
     slideSubtitle: {
       fontSize: fontSize.md,
+      fontFamily: fonts.body,
       color: colors.textSecondary,
       textAlign: 'center',
       lineHeight: 22,
@@ -185,14 +191,17 @@ function createStyles(colors: any) {
       alignItems: 'center',
       gap: spacing.md,
       backgroundColor: colors.surface,
-      borderRadius: borderRadius.md,
+      borderRadius: borderRadius.lg,
       padding: spacing.md,
+      borderWidth: 1,
+      borderColor: colors.border,
+      ...shadowCard,
     },
     featureIcon: {
       width: 44,
       height: 44,
-      borderRadius: 22,
-      backgroundColor: colors.infoTint,
+      borderRadius: borderRadius.md,
+      backgroundColor: colors.accentSoft,
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -201,13 +210,15 @@ function createStyles(colors: any) {
     },
     featureLabel: {
       fontSize: fontSize.md,
-      fontWeight: fontWeight.semibold,
+      fontFamily: fonts.bodyMedium,
       color: colors.text,
     },
     featureDesc: {
       fontSize: fontSize.sm,
+      fontFamily: fonts.body,
       color: colors.textSecondary,
       marginTop: 2,
+      lineHeight: 18,
     },
     footer: {
       paddingHorizontal: spacing.xl,
@@ -226,7 +237,7 @@ function createStyles(colors: any) {
       backgroundColor: colors.border,
     },
     dotActive: {
-      backgroundColor: colors.primary,
+      backgroundColor: colors.accent,
       width: 24,
     },
     nextButton: {
@@ -235,15 +246,15 @@ function createStyles(colors: any) {
       justifyContent: 'center',
       gap: spacing.sm,
       backgroundColor: colors.primary,
-      paddingVertical: spacing.md,
+      paddingVertical: spacing.md + 2,
       paddingHorizontal: spacing.xl,
-      borderRadius: borderRadius.md,
+      borderRadius: borderRadius.lg,
       width: '100%',
     },
     nextButtonText: {
       color: colors.textInverse,
       fontSize: fontSize.lg,
-      fontWeight: fontWeight.semibold,
+      fontFamily: fonts.display,
     },
     skipButton: {
       paddingVertical: spacing.sm,
@@ -251,7 +262,7 @@ function createStyles(colors: any) {
     skipText: {
       color: colors.textSecondary,
       fontSize: fontSize.sm,
-      fontWeight: fontWeight.medium,
+      fontFamily: fonts.bodyMedium,
     },
   });
 }

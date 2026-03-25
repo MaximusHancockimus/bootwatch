@@ -2,8 +2,10 @@ import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Complex } from '../types/complex';
 import RiskBadge from './RiskBadge';
-import { fontSize, fontWeight, spacing, borderRadius } from '../theme';
+import { fontSize, spacing, borderRadius, shadowFloat } from '../theme';
+import { fonts } from '../theme/fonts';
 import { useTheme } from '../context/ThemeContext';
+import { formatParkingHoursSummary, formatVisitorLimitMinutes } from '../utils/parkingDisplay';
 
 interface Props {
   complex: Complex | null;
@@ -27,7 +29,16 @@ function formatTimeAgo(date: Date): string {
   return `${days}d ago`;
 }
 
-export default function ComplexDetailSheet({ complex, visible, onClose, onParkHere, lastSightingAt, isSaved, onToggleSave, sightingCount }: Props) {
+export default function ComplexDetailSheet({
+  complex,
+  visible,
+  onClose,
+  onParkHere,
+  lastSightingAt,
+  isSaved,
+  onToggleSave,
+  sightingCount,
+}: Props) {
   const { colors } = useTheme();
   const styles = createStyles(colors);
 
@@ -35,18 +46,21 @@ export default function ComplexDetailSheet({ complex, visible, onClose, onParkHe
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={styles.overlay} onPress={onClose}>
-        <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
+      <View style={styles.overlay}>
+        <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Close" />
+        <View style={styles.sheet}>
+          <View style={styles.accentStrip} />
           <View style={styles.handle} />
 
           <View style={styles.header}>
-            <Text style={styles.name}>{complex.name}</Text>
+            <Text style={styles.name} numberOfLines={2}>
+              {complex.name}
+            </Text>
             <RiskBadge level={complex.riskLevel} />
           </View>
 
           <Text style={styles.address}>{complex.address}</Text>
 
-          {/* Sighting banners */}
           <View style={[styles.sightingBanner, lastSightingAt ? styles.sightingBannerActive : styles.sightingBannerNone]}>
             <Ionicons
               name={lastSightingAt ? 'warning' : 'checkmark-circle-outline'}
@@ -62,7 +76,7 @@ export default function ComplexDetailSheet({ complex, visible, onClose, onParkHe
 
           {sightingCount != null && sightingCount > 0 && (
             <View style={styles.statRow}>
-              <Ionicons name="stats-chart" size={16} color={colors.textSecondary} />
+              <Ionicons name="stats-chart" size={16} color={colors.accent} />
               <Text style={styles.statText}>
                 {sightingCount} {sightingCount === 1 ? 'report' : 'reports'} in the last 30 days
               </Text>
@@ -72,22 +86,22 @@ export default function ComplexDetailSheet({ complex, visible, onClose, onParkHe
           <View style={styles.infoGrid}>
             <InfoRow
               icon="time-outline"
-              label="Visitor Limit"
-              value={complex.visitorTimeLimitMinutes ? `${complex.visitorTimeLimitMinutes} min` : 'Unknown'}
+              label="Visitor limit"
+              value={formatVisitorLimitMinutes(complex.visitorTimeLimitMinutes)}
               styles={styles}
               colors={colors}
             />
             <InfoRow
               icon="car-outline"
-              label="Boot Company"
+              label="Boot company"
               value={complex.bootingCompany ?? 'None reported'}
               styles={styles}
               colors={colors}
             />
             <InfoRow
-              icon="information-circle-outline"
-              label="Signage"
-              value={complex.signageQuality.charAt(0).toUpperCase() + complex.signageQuality.slice(1)}
+              icon="calendar-outline"
+              label="Parking hours"
+              value={formatParkingHoursSummary(complex)}
               styles={styles}
               colors={colors}
             />
@@ -103,7 +117,7 @@ export default function ComplexDetailSheet({ complex, visible, onClose, onParkHe
               <Ionicons
                 name={isSaved ? 'notifications' : 'notifications-outline'}
                 size={20}
-                color={isSaved ? colors.primary : colors.textSecondary}
+                color={isSaved ? colors.accent : colors.textSecondary}
               />
               <View style={styles.followTextContainer}>
                 <Text style={[styles.followLabel, isSaved && styles.followLabelActive]}>
@@ -115,32 +129,41 @@ export default function ComplexDetailSheet({ complex, visible, onClose, onParkHe
                     : 'Get push alerts when a boot truck is reported here'}
                 </Text>
               </View>
-              {isSaved && (
-                <Ionicons name="checkmark-circle" size={20} color={colors.primary} />
-              )}
+              {isSaved && <Ionicons name="checkmark-circle" size={20} color={colors.accent} />}
             </Pressable>
           )}
 
-          <Pressable
-            style={styles.parkButton}
-            onPress={() => onParkHere(complex)}
-          >
+          <Pressable style={styles.parkButton} onPress={() => onParkHere(complex)}>
             <Ionicons name="timer-outline" size={20} color={colors.textInverse} />
-            <Text style={styles.parkButtonText}>Park Here</Text>
+            <Text style={styles.parkButtonText}>Park here</Text>
           </Pressable>
-        </Pressable>
-      </Pressable>
+        </View>
+      </View>
     </Modal>
   );
 }
 
-function InfoRow({ icon, label, value, styles, colors }: { icon: React.ComponentProps<typeof Ionicons>['name']; label: string; value: string; styles: Record<string, object>; colors: import('../theme').AppColors }) {
+function InfoRow({
+  icon,
+  label,
+  value,
+  multiline,
+  styles,
+  colors,
+}: {
+  icon: React.ComponentProps<typeof Ionicons>['name'];
+  label: string;
+  value: string;
+  multiline?: boolean;
+  styles: Record<string, object>;
+  colors: import('../theme').AppColors;
+}) {
   return (
-    <View style={styles.infoRow}>
-      <Ionicons name={icon} size={18} color={colors.textSecondary} />
-      <View>
+    <View style={styles.infoCard}>
+      <Ionicons name={icon} size={18} color={colors.primary} />
+      <View style={styles.infoCardText}>
         <Text style={styles.infoLabel}>{label}</Text>
-        <Text style={styles.infoValue}>{value}</Text>
+        <Text style={[styles.infoValue, multiline && styles.infoValueMultiline]}>{value}</Text>
       </View>
     </View>
   );
@@ -148,143 +171,183 @@ function InfoRow({ icon, label, value, styles, colors }: { icon: React.Component
 
 function createStyles(colors: import('../theme').AppColors) {
   return StyleSheet.create({
-  overlay: {
-    flex: 1,
-    justifyContent: 'flex-end',
-    backgroundColor: 'rgba(0,0,0,0.3)',
-  },
-  sheet: {
-    backgroundColor: colors.background,
-    borderTopLeftRadius: borderRadius.lg,
-    borderTopRightRadius: borderRadius.lg,
-    padding: spacing.lg,
-    paddingBottom: spacing.xl,
-  },
-  handle: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: colors.border,
-    alignSelf: 'center',
-    marginBottom: spacing.md,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.xs,
-  },
-  name: {
-    fontSize: fontSize.xl,
-    fontWeight: fontWeight.bold,
-    color: colors.text,
-    flex: 1,
-    marginRight: spacing.sm,
-  },
-  address: {
-    fontSize: fontSize.sm,
-    color: colors.textSecondary,
-    marginBottom: spacing.md,
-  },
-  sightingBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    borderRadius: borderRadius.sm,
-    marginBottom: spacing.md,
-  },
-  sightingBannerActive: {
-    backgroundColor: colors.dangerLight,
-  },
-  sightingBannerNone: {
-    backgroundColor: colors.safeLight,
-  },
-  sightingText: {
-    fontSize: fontSize.sm,
-    fontWeight: fontWeight.medium,
-    flex: 1,
-  },
-  statRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    marginBottom: spacing.md,
-  },
-  statText: {
-    fontSize: fontSize.sm,
-    color: colors.textSecondary,
-  },
-  infoGrid: {
-    gap: spacing.md,
-    marginBottom: spacing.md,
-  },
-  infoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  infoLabel: {
-    fontSize: fontSize.xs,
-    color: colors.textSecondary,
-  },
-  infoValue: {
-    fontSize: fontSize.md,
-    fontWeight: fontWeight.medium,
-    color: colors.text,
-  },
-  notes: {
-    fontSize: fontSize.sm,
-    color: colors.textSecondary,
-    fontStyle: 'italic',
-    marginBottom: spacing.lg,
-    lineHeight: 20,
-  },
-  followRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    padding: spacing.md,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    marginBottom: spacing.sm,
-  },
-  followRowActive: {
-    borderColor: colors.primary,
-    backgroundColor: colors.infoTint,
-  },
-  followTextContainer: {
-    flex: 1,
-  },
-  followLabel: {
-    fontSize: fontSize.sm,
-    fontWeight: fontWeight.semibold,
-    color: colors.text,
-  },
-  followLabelActive: {
-    color: colors.primary,
-  },
-  followDescription: {
-    fontSize: fontSize.xs,
-    color: colors.textSecondary,
-    marginTop: 1,
-  },
-  parkButton: {
-    backgroundColor: colors.primary,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: spacing.md,
-    borderRadius: borderRadius.md,
-    gap: spacing.sm,
-  },
-  parkButtonText: {
-    color: colors.textInverse,
-    fontSize: fontSize.lg,
-    fontWeight: fontWeight.semibold,
-  },
-});
+    overlay: {
+      flex: 1,
+      justifyContent: 'flex-end',
+      backgroundColor: 'rgba(15, 23, 42, 0.45)',
+    },
+    backdrop: {
+      ...StyleSheet.absoluteFillObject,
+    },
+    sheet: {
+      backgroundColor: colors.background,
+      borderTopLeftRadius: borderRadius.xl,
+      borderTopRightRadius: borderRadius.xl,
+      paddingHorizontal: spacing.lg,
+      paddingBottom: spacing.xl,
+      paddingTop: spacing.xs,
+      maxHeight: '88%',
+      overflow: 'hidden',
+      ...shadowFloat,
+    },
+    accentStrip: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      height: 3,
+      backgroundColor: colors.accent,
+      borderTopLeftRadius: borderRadius.xl,
+      borderTopRightRadius: borderRadius.xl,
+    },
+    handle: {
+      width: 44,
+      height: 5,
+      borderRadius: 3,
+      backgroundColor: colors.border,
+      alignSelf: 'center',
+      marginBottom: spacing.md,
+      marginTop: spacing.sm,
+    },
+    header: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+      gap: spacing.sm,
+      marginBottom: spacing.xs,
+    },
+    name: {
+      flex: 1,
+      fontSize: fontSize.xl,
+      fontFamily: fonts.displayBold,
+      color: colors.text,
+    },
+    address: {
+      fontSize: fontSize.sm,
+      fontFamily: fonts.body,
+      color: colors.textSecondary,
+      marginBottom: spacing.md,
+    },
+    sightingBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+      paddingVertical: spacing.md,
+      paddingHorizontal: spacing.md,
+      borderRadius: borderRadius.md,
+      marginBottom: spacing.md,
+      borderWidth: 1,
+    },
+    sightingBannerActive: {
+      backgroundColor: colors.dangerLight,
+      borderColor: colors.danger,
+    },
+    sightingBannerNone: {
+      backgroundColor: colors.safeLight,
+      borderColor: colors.safe,
+    },
+    sightingText: {
+      fontSize: fontSize.sm,
+      fontFamily: fonts.bodyMedium,
+      flex: 1,
+    },
+    statRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+      marginBottom: spacing.md,
+    },
+    statText: {
+      fontSize: fontSize.sm,
+      fontFamily: fonts.body,
+      color: colors.textSecondary,
+    },
+    infoGrid: {
+      gap: spacing.sm,
+      marginBottom: spacing.md,
+    },
+    infoCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.md,
+      padding: spacing.md,
+      borderRadius: borderRadius.md,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    infoCardText: {
+      flex: 1,
+    },
+    infoLabel: {
+      fontSize: fontSize.xs,
+      fontFamily: fonts.body,
+      color: colors.textSecondary,
+      textTransform: 'uppercase',
+      letterSpacing: 0.6,
+      marginBottom: 2,
+    },
+    infoValue: {
+      fontSize: fontSize.md,
+      fontFamily: fonts.bodyMedium,
+      color: colors.text,
+    },
+    infoValueMultiline: {
+      lineHeight: 22,
+    },
+    notes: {
+      fontSize: fontSize.sm,
+      fontFamily: fonts.body,
+      color: colors.textSecondary,
+      fontStyle: 'italic',
+      marginBottom: spacing.lg,
+      lineHeight: 20,
+    },
+    followRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+      padding: spacing.md,
+      borderRadius: borderRadius.md,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      marginBottom: spacing.sm,
+    },
+    followRowActive: {
+      borderColor: colors.accent,
+      backgroundColor: colors.accentSoft,
+    },
+    followTextContainer: {
+      flex: 1,
+    },
+    followLabel: {
+      fontSize: fontSize.sm,
+      fontFamily: fonts.bodyMedium,
+      color: colors.text,
+    },
+    followLabelActive: {
+      color: colors.accent,
+    },
+    followDescription: {
+      fontSize: fontSize.xs,
+      fontFamily: fonts.body,
+      color: colors.textSecondary,
+      marginTop: 2,
+    },
+    parkButton: {
+      backgroundColor: colors.primary,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: spacing.md + 2,
+      borderRadius: borderRadius.md,
+      gap: spacing.sm,
+    },
+    parkButtonText: {
+      color: colors.textInverse,
+      fontSize: fontSize.lg,
+      fontFamily: fonts.display,
+    },
+  });
 }
