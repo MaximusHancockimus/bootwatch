@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRoute } from '@react-navigation/native';
 import { complexes, CUSTOM_TIMER_ID, getComplexById } from '../data/complexes';
@@ -7,6 +7,22 @@ import { useParkingTimer, TimerPhase } from '../hooks/useParkingTimer';
 import RiskBadge from '../components/RiskBadge';
 import { fontSize, fontWeight, spacing, borderRadius } from '../theme';
 import { useTheme } from '../context/ThemeContext';
+import { showTimerMascot } from '../config/features';
+
+const TIMER_ON_WATCH_IMAGE = require('../../assets/timer-on-watch.png');
+
+/** Web: shadow follows non-transparent pixels (no “card” box). */
+const mascotWebDropShadow = {
+  filter: 'drop-shadow(0 12px 14px rgba(0, 0, 0, 0.22)) drop-shadow(0 4px 6px rgba(0, 0, 0, 0.12))',
+} as const;
+
+/** iOS: light shadow on the image only (wrapper has no elevation). */
+const mascotIosShadow = {
+  shadowColor: '#000000',
+  shadowOffset: { width: 0, height: 10 },
+  shadowOpacity: 0.18,
+  shadowRadius: 12,
+};
 
 function formatTime(seconds: number): string {
   const h = Math.floor(seconds / 3600);
@@ -93,6 +109,22 @@ export default function TimerScreen() {
             {timer.phase === 'critical' && "Move now \u2014 under 5 minutes!"}
             {timer.phase === 'expired' && "Time is up \u2014 move your car!"}
           </Text>
+
+          {showTimerMascot && timer.phase !== 'expired' && (
+            <View style={styles.timerMascotWrap}>
+              <View style={styles.mascotGroundShadow} pointerEvents="none" />
+              <Image
+                source={TIMER_ON_WATCH_IMAGE}
+                style={[
+                  styles.timerMascot,
+                  Platform.OS === 'web' && mascotWebDropShadow,
+                  Platform.OS === 'ios' && mascotIosShadow,
+                ]}
+                resizeMode="contain"
+                accessibilityLabel="BootWatch scout on watch"
+              />
+            </View>
+          )}
 
           <View style={styles.progressBarTrack}>
             <View
@@ -388,6 +420,33 @@ function createStyles(colors: any) {
     fontSize: fontSize.lg,
     fontWeight: fontWeight.semibold,
     color: colors.text,
+  },
+  timerMascotWrap: {
+    width: '100%',
+    maxWidth: 300,
+    height: 200,
+    marginTop: spacing.md,
+    marginBottom: spacing.xs,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+    overflow: 'visible',
+  },
+  /** Soft “contact shadow” under the character — not a box around the art. */
+  mascotGroundShadow: {
+    position: 'absolute',
+    bottom: 6,
+    width: '36%',
+    maxWidth: 105,
+    height: 18,
+    borderRadius: 999,
+    backgroundColor: 'rgba(0, 0, 0, 0.12)',
+    transform: [{ scaleX: 1.05 }],
+  },
+  timerMascot: {
+    width: '100%',
+    height: '100%',
+    zIndex: 1,
   },
   countdown: {
     fontSize: 72,
