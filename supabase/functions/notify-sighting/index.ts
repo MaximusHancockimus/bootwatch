@@ -1,11 +1,14 @@
 // Supabase Edge Function: notify-sighting
-// Triggered via Database Webhook when a new sighting is inserted.
-// Looks up all users who follow the sighting's complex and sends
-// push notifications via Expo's push API.
+// Triggered via Database Webhook on INSERT into sightings.
+// Notifies users who follow OR are parked (active timer) at the reported complex
+// OR any complex within ~1–2 blocks of the sighting point (reporter GPS).
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
+
+/** ~1–2 short city blocks; tight enough to stay relevant, loose enough to catch neighbors. */
+const NEARBY_RADIUS_METERS = 450;
 
 interface WebhookPayload {
   type: "INSERT";
@@ -14,89 +17,146 @@ interface WebhookPayload {
     id: string;
     user_id: string | null;
     complex_id: string;
-    report_type: string;
-    is_anonymous: boolean;
-    created_at: string;
+    report_type?: string;
   };
+}
+
+function haversineMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371000;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
 Deno.serve(async (req) => {
   try {
     const payload: WebhookPayload = await req.json();
-    const sighting = payload.record;
+    const record = payload.record;
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    // Get complex name
-    const { data: complex } = await supabase
+    const { data: sighting, error: sightingErr } = await supabase
+      .from("sightings")
+      .select("id, user_id, complex_id, latitude, longitude, report_type")
+      .eq("id", record.id)
+      .single();
+
+    if (sightingErr || !sighting) {
+      return new Response(
+        JSON.stringify({ error: "Sighting not found", detail: sightingErr?.message }),
+        { status: 404, headers: { "Content-Type": "application/json" } },
+      );
+    }
+
+    const { data: reportedComplex } = await supabase
       .from("complexes")
-      .select("name")
+      .select("name, latitude, longitude")
       .eq("id", sighting.complex_id)
       .single();
 
-    const complexName = complex?.name ?? "an apartment complex";
+    const complexName = reportedComplex?.name ?? "an apartment complex";
 
-    // Find all profiles that follow this complex and have a push token
+    // Prefer reporter coordinates (where they saw the truck); fall back to complex center.
+    let anchorLat = sighting.latitude;
+    let anchorLng = sighting.longitude;
+    if (
+      anchorLat == null ||
+      anchorLng == null ||
+      Number.isNaN(anchorLat) ||
+      Number.isNaN(anchorLng)
+    ) {
+      anchorLat = reportedComplex?.latitude ?? 0;
+      anchorLng = reportedComplex?.longitude ?? 0;
+    }
+
+    const { data: allComplexes, error: complexesErr } = await supabase
+      .from("complexes")
+      .select("id, latitude, longitude");
+
+    if (complexesErr || !allComplexes?.length) {
+      return new Response(
+        JSON.stringify({ error: "Could not load complexes", detail: complexesErr?.message }),
+        { status: 500, headers: { "Content-Type": "application/json" } },
+      );
+    }
+
+    const nearIds = new Set<string>();
+    nearIds.add(sighting.complex_id);
+    for (const c of allComplexes) {
+      if (c.latitude == null || c.longitude == null) continue;
+      if (haversineMeters(anchorLat, anchorLng, c.latitude, c.longitude) <= NEARBY_RADIUS_METERS) {
+        nearIds.add(c.id);
+      }
+    }
+
+    const nearIdList = [...nearIds];
+
     const { data: followers } = await supabase
       .from("profiles")
       .select("id, push_token")
-      .contains("saved_complexes", [sighting.complex_id])
-      .not("push_token", "is", null);
+      .not("push_token", "is", null)
+      .eq("nearby_sighting_alerts", true)
+      .overlaps("saved_complexes", nearIdList);
 
-    // Find users with an active parking timer at this complex
-    const { data: parkedUsers } = await supabase
+    const { data: parkedTimers } = await supabase
       .from("active_timers")
       .select("user_id")
-      .eq("complex_id", sighting.complex_id)
+      .in("complex_id", nearIdList)
       .gt("expires_at", new Date().toISOString());
 
-    // Fetch push tokens for parked users
-    const parkedUserIds = (parkedUsers ?? []).map((t) => t.user_id);
+    const parkedUserIds = (parkedTimers ?? []).map((t) => t.user_id);
     let parkedProfiles: { id: string; push_token: string }[] = [];
     if (parkedUserIds.length > 0) {
       const { data } = await supabase
         .from("profiles")
         .select("id, push_token")
         .in("id", parkedUserIds)
-        .not("push_token", "is", null);
+        .not("push_token", "is", null)
+        .eq("nearby_sighting_alerts", true);
       parkedProfiles = data ?? [];
     }
 
-    // Merge followers + parked users, deduplicate by user id
     const allRecipients = new Map<string, string>();
-    for (const f of (followers ?? [])) {
+    for (const f of followers ?? []) {
       if (f.push_token) allRecipients.set(f.id, f.push_token);
     }
     for (const p of parkedProfiles) {
       if (p.push_token) allRecipients.set(p.id, p.push_token);
     }
 
-    // Don't notify the person who reported
     if (sighting.user_id) allRecipients.delete(sighting.user_id);
 
     const tokens = [...allRecipients.values()];
 
     if (tokens.length === 0) {
       return new Response(
-        JSON.stringify({ sent: 0, followers: followers?.length ?? 0, parked: parkedUserIds.length }),
+        JSON.stringify({
+          sent: 0,
+          nearbyComplexCount: nearIdList.length,
+          radiusMeters: NEARBY_RADIUS_METERS,
+        }),
         { headers: { "Content-Type": "application/json" } },
       );
     }
 
+    const reportType = sighting.report_type ?? "spotter";
     const title =
-      sighting.report_type === "booted"
-        ? `Someone got booted at ${complexName}!`
-        : `Booter spotted at ${complexName}!`;
+      reportType === "booted"
+        ? `Someone got booted near ${complexName}!`
+        : `Booter spotted near ${complexName}!`;
 
     const body =
-      sighting.report_type === "booted"
-        ? "A community member just reported getting booted. Be extra careful parking here."
-        : "A boot truck was just reported nearby. Check the feed for details.";
+      reportType === "booted"
+        ? "A community member reported getting booted within a few blocks. Be careful if you're parked nearby."
+        : "A boot truck was reported nearby (within a few blocks). Check the feed for details.";
 
-    // Send via Expo push API (batched)
     const messages = tokens.map((token) => ({
       to: token,
       sound: "default",
@@ -117,7 +177,12 @@ Deno.serve(async (req) => {
     const pushResult = await pushResponse.json();
 
     return new Response(
-      JSON.stringify({ sent: tokens.length, result: pushResult }),
+      JSON.stringify({
+        sent: tokens.length,
+        nearbyComplexCount: nearIdList.length,
+        radiusMeters: NEARBY_RADIUS_METERS,
+        result: pushResult,
+      }),
       { headers: { "Content-Type": "application/json" } },
     );
   } catch (error) {

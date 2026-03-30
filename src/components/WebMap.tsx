@@ -5,6 +5,9 @@ import { Complex } from '../types/complex';
 import { RISK_CONFIG } from '../utils/risk';
 import { REXBURG_CENTER } from '../data/complexes';
 
+/** Distinct from risk pins (green/yellow/red) so “you are here” is obvious. */
+const USER_LOCATION_BLUE = '#2563EB';
+
 interface Props {
   complexes: Complex[];
   onMarkerPress: (complex: Complex) => void;
@@ -38,6 +41,7 @@ export default function WebMap({ complexes, onMarkerPress, colorOverrides }: Pro
   const containerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const markersRef = useRef<L.Marker[]>([]);
+  const userLocationRef = useRef<L.CircleMarker | null>(null);
 
   useEffect(() => {
     if (!containerRef.current || mapInstanceRef.current) return;
@@ -54,18 +58,21 @@ export default function WebMap({ complexes, onMarkerPress, colorOverrides }: Pro
 
     map.locate({ setView: false, watch: false });
     map.on('locationfound', (e) => {
-      L.circleMarker(e.latlng, {
+      userLocationRef.current?.remove();
+      const dot = L.circleMarker(e.latlng, {
         radius: 8,
-        fillColor: '#16A34A',
+        fillColor: USER_LOCATION_BLUE,
         fillOpacity: 1,
-        color: 'white',
+        color: '#ffffff',
         weight: 3,
       }).addTo(map);
+      userLocationRef.current = dot;
     });
 
     mapInstanceRef.current = map;
 
     return () => {
+      userLocationRef.current = null;
       map.remove();
       mapInstanceRef.current = null;
     };
