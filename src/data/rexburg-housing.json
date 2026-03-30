@@ -14,7 +14,7 @@
   { "name": "NorthPoint Apartments", "lat": 43.82278915092779, "lng": -111.78627151633873, "visitor_limit_minutes": 120, "enforcement": "RC Booting", "weekday_hours": { "start": "10:00", "end": "00:00" }, "friday_hours": { "start": "10:00", "end": "01:00" }, "signageQuality": "well-marked", "riskLevel": "moderate" },
   { "name": "The Gates at Rexburg", "lat": 43.81272755906563, "lng": -111.79447508895876 },
   { "name": "The Cove", "lat": 43.82123080784366, "lng": -111.78994694598056 },
-  { "name": "University View", "lat": 43.81277696026857, "lng": -111.786803863979, "visitor_limit_minutes": 120, "enforcement": "Unknown", "weekday_hours": { "start": "10:00", "end": "22:00" }, "friday_hours": { "start": "10:00", "end": "00:00" }, "signageQuality": "moderate", "riskLevel": "unknown" },
+  { "name": "University View", "lat": 43.81277696026857, "lng": -111.786803863979, "visitor_limit_minutes": 120, "enforcement": "Unknown", "weekday_hours": { "start": "10:00", "end": "22:00" }, "friday_hours": { "start": "10:00", "end": "00:00" }, "signageQuality": "moderate", "riskLevel": "unknown", "peak_activity_hint": "Most reports were around 3pm and 12am." },
   { "name": "Park Place Apartments", "lat": 43.8264062789174, "lng": -111.77585545589062 },
   { "name": "Alpine Chalet Apartments", "lat": 43.81607133625046, "lng": -111.78937823592788 },
   { "name": "The Lodge", "lat": 43.814688438261946, "lng": -111.79123197869117 },

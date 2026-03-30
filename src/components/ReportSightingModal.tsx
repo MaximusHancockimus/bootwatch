@@ -89,8 +89,8 @@ export default function ReportSightingModal({ visible, onClose, onSuccess }: Pro
 
     const sightingTime = new Date(Date.now() - timeOffset * 60 * 1000).toISOString();
 
+    // user_id and created_at are enforced server-side (RLS + sightings_before_insert trigger).
     const { error } = await supabase.from('sightings').insert({
-      user_id: user.id,
       complex_id: selectedComplexId,
       latitude: complex.latitude,
       longitude: complex.longitude,

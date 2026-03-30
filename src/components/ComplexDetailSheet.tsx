@@ -6,6 +6,11 @@ import { fontSize, spacing, borderRadius, shadowFloat } from '../theme';
 import { fonts } from '../theme/fonts';
 import { useTheme } from '../context/ThemeContext';
 import { formatParkingHoursSummary, formatVisitorLimitMinutes } from '../utils/parkingDisplay';
+import { useComplexSightingPatterns } from '../hooks/useComplexSightingPatterns';
+import {
+  MIN_REPORTS_FOR_PEAK_PATTERN,
+  formatPeakPatternSentence,
+} from '../utils/sightingPatterns';
 
 interface Props {
   complex: Complex | null;
@@ -40,9 +45,24 @@ export default function ComplexDetailSheet({
   sightingCount,
 }: Props) {
   const { colors } = useTheme();
+  const { stats } = useComplexSightingPatterns(complex?.id ?? null, visible && !!complex);
   const styles = createStyles(colors);
 
   if (!complex) return null;
+
+  const statsReady =
+    stats != null &&
+    stats.total >= MIN_REPORTS_FOR_PEAK_PATTERN &&
+    stats.topHours.length > 0;
+  const dataPatternLine = statsReady ? formatPeakPatternSentence(stats.topHours) : null;
+  const hintLine =
+    !statsReady && complex.peakActivityHint ? complex.peakActivityHint.trim() : null;
+  const patternMainLine = dataPatternLine ?? hintLine;
+  const patternSubline = statsReady && stats
+    ? `Based on ${stats.total} reports in the last 90 days (Mountain Time).`
+    : hintLine
+      ? 'Community note until more app reports exist.'
+      : null;
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -82,6 +102,17 @@ export default function ComplexDetailSheet({
               </Text>
             </View>
           )}
+
+          {patternMainLine ? (
+            <View style={styles.patternCard}>
+              <Ionicons name="trending-up-outline" size={20} color={colors.primary} />
+              <View style={styles.patternTextCol}>
+                <Text style={styles.patternLabel}>Typical report times</Text>
+                <Text style={styles.patternBody}>{patternMainLine}</Text>
+                {patternSubline ? <Text style={styles.patternCaption}>{patternSubline}</Text> : null}
+              </View>
+            </View>
+          ) : null}
 
           <View style={styles.infoGrid}>
             <InfoRow
@@ -261,6 +292,41 @@ function createStyles(colors: import('../theme').AppColors) {
       fontSize: fontSize.sm,
       fontFamily: fonts.body,
       color: colors.textSecondary,
+    },
+    patternCard: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: spacing.md,
+      padding: spacing.md,
+      borderRadius: borderRadius.md,
+      marginBottom: spacing.md,
+      backgroundColor: colors.infoTint,
+      borderWidth: 1,
+      borderColor: colors.primary,
+    },
+    patternTextCol: {
+      flex: 1,
+    },
+    patternLabel: {
+      fontSize: fontSize.xs,
+      fontFamily: fonts.bodyMedium,
+      color: colors.textSecondary,
+      textTransform: 'uppercase',
+      letterSpacing: 0.6,
+      marginBottom: spacing.xs,
+    },
+    patternBody: {
+      fontSize: fontSize.md,
+      fontFamily: fonts.bodyMedium,
+      color: colors.text,
+      lineHeight: 22,
+    },
+    patternCaption: {
+      fontSize: fontSize.xs,
+      fontFamily: fonts.body,
+      color: colors.textSecondary,
+      marginTop: spacing.xs,
+      lineHeight: 18,
     },
     infoGrid: {
       gap: spacing.sm,

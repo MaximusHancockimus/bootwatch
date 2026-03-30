@@ -24,4 +24,6 @@ export interface Complex {
   visitorWeekdayHours?: VisitorHourRange | null;
   /** Friday window; `null` = surveyed as not listed */
   visitorFridayHours?: VisitorHourRange | null;
+  /** Shown in detail sheet when DB stats are below threshold (optional demo / local knowledge). */
+  peakActivityHint?: string | null;
 }

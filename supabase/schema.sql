@@ -6,7 +6,6 @@ create table public.profiles (
   id uuid references auth.users on delete cascade primary key,
   display_name text,
   saved_complexes text[] default '{}',
-  push_token text,
   nearby_sighting_alerts boolean not null default true,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
@@ -67,6 +66,27 @@ create policy "Profiles are viewable by everyone"
 create policy "Users can update their own profile"
   on public.profiles for update using (auth.uid() = id);
 
+-- Expo push tokens (not exposed via public profiles SELECT)
+create table public.push_tokens (
+  user_id uuid primary key references auth.users (id) on delete cascade,
+  token text not null,
+  updated_at timestamptz not null default now()
+);
+
+alter table public.push_tokens enable row level security;
+
+create policy "Users read own push token"
+  on public.push_tokens for select using (auth.uid() = user_id);
+
+create policy "Users insert own push token"
+  on public.push_tokens for insert with check (auth.uid() = user_id);
+
+create policy "Users update own push token"
+  on public.push_tokens for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+create policy "Users delete own push token"
+  on public.push_tokens for delete using (auth.uid() = user_id);
+
 -- Complexes: everyone can read, only admins insert/update (we'll seed via SQL)
 alter table public.complexes enable row level security;
 
@@ -79,8 +99,34 @@ alter table public.sightings enable row level security;
 create policy "Sightings are viewable by everyone"
   on public.sightings for select using (true);
 
-create policy "Authenticated users can insert sightings"
-  on public.sightings for insert with check (auth.role() = 'authenticated');
+create policy "Authenticated users insert own sightings"
+  on public.sightings for insert
+  with check (auth.role() = 'authenticated' and user_id = auth.uid());
+
+create or replace function public.sightings_before_insert()
+returns trigger
+language plpgsql
+security invoker
+set search_path = public
+as $$
+declare
+  n timestamptz := now();
+begin
+  new.user_id := auth.uid();
+  if new.created_at is null then
+    new.created_at := n;
+  elsif new.created_at > n + interval '5 minutes' then
+    new.created_at := n;
+  elsif new.created_at < n - interval '6 hours' then
+    new.created_at := n;
+  end if;
+  return new;
+end;
+$$;
+
+create trigger sightings_before_insert
+  before insert on public.sightings
+  for each row execute function public.sightings_before_insert();
 
 -- 5. Enable Realtime on sightings
 alter publication supabase_realtime add table public.sightings;

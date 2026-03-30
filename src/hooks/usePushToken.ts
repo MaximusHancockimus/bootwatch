@@ -31,8 +31,8 @@ async function registerAndStore(userId: string) {
     projectId ? { projectId } : undefined as any,
   )).data;
 
-  await supabase
-    .from('profiles')
-    .update({ push_token: token })
-    .eq('id', userId);
+  await supabase.from('push_tokens').upsert(
+    { user_id: userId, token, updated_at: new Date().toISOString() },
+    { onConflict: 'user_id' },
+  );
 }
