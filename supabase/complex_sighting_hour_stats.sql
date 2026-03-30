@@ -49,4 +49,4 @@ $$;
 comment on function public.complex_sighting_hour_stats(text, int) is
   'Returns { total, top_hours: int[] } for sightings at complex_id in last p_days; hours are America/Boise wall clock.';
 
-grant execute on function public.complex_sighting_hour_stats(text, int) to anon, authenticated;
+grant execute on function public.complex_sighting_hour_stats(text, int) to authenticated;

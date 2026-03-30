@@ -1,7 +1,7 @@
 // Supabase Edge Function: notify-sighting
 // Triggered via Database Webhook on INSERT into sightings.
-// Notifies users who follow OR are parked (active timer) at the reported complex
-// OR any complex within ~1–2 blocks of the sighting point (reporter GPS).
+// Requires header x-bootwatch-webhook-secret matching NOTIFY_SIGHTING_WEBHOOK_SECRET (or Bearer same value).
+// Dashboard: Edge Function → disable JWT verification for this function (webhook has no user JWT).
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -21,6 +21,38 @@ interface WebhookPayload {
   };
 }
 
+function timingSafeEqual(a: string, b: string): boolean {
+  const enc = new TextEncoder();
+  const ba = enc.encode(a);
+  const bb = enc.encode(b);
+  if (ba.length !== bb.length) return false;
+  let diff = 0;
+  for (let i = 0; i < ba.length; i++) diff |= ba[i]! ^ bb[i]!;
+  return diff === 0;
+}
+
+function verifyWebhookSecret(req: Request): Response | null {
+  const secret = Deno.env.get("NOTIFY_SIGHTING_WEBHOOK_SECRET")?.trim();
+  if (!secret || secret.length < 16) {
+    return new Response(
+      JSON.stringify({
+        error: "Server misconfigured: set NOTIFY_SIGHTING_WEBHOOK_SECRET (min 16 chars) on this function",
+      }),
+      { status: 500, headers: { "Content-Type": "application/json" } },
+    );
+  }
+  const header =
+    req.headers.get("x-bootwatch-webhook-secret")?.trim() ??
+    req.headers.get("authorization")?.replace(/^Bearer\s+/i, "")?.trim();
+  if (!header || !timingSafeEqual(header, secret)) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      status: 401,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+  return null;
+}
+
 function haversineMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371000;
   const toRad = (d: number) => (d * Math.PI) / 180;
@@ -32,8 +64,28 @@ function haversineMeters(lat1: number, lon1: number, lat2: number, lon2: number)
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+async function tokensForUsers(supabase: any, userIds: string[]): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  if (userIds.length === 0) return out;
+  const { data, error } = await supabase
+    .from("push_tokens")
+    .select("user_id, token")
+    .in("user_id", userIds);
+  if (error) {
+    console.error("[notify-sighting] push_tokens query", error.message);
+    return out;
+  }
+  for (const row of (data ?? []) as { user_id: string; token: string }[]) {
+    if (row.user_id && row.token) out.set(row.user_id, row.token);
+  }
+  return out;
+}
+
 Deno.serve(async (req) => {
   try {
+    const denied = verifyWebhookSecret(req);
+    if (denied) return denied;
+
     const payload: WebhookPayload = await req.json();
     const record = payload.record;
 
@@ -98,12 +150,14 @@ Deno.serve(async (req) => {
 
     const nearIdList = [...nearIds];
 
-    const { data: followers } = await supabase
+    const { data: followerProfiles } = await supabase
       .from("profiles")
-      .select("id, push_token")
-      .not("push_token", "is", null)
+      .select("id")
       .eq("nearby_sighting_alerts", true)
       .overlaps("saved_complexes", nearIdList);
+
+    const followerIds = (followerProfiles ?? []).map((r) => r.id);
+    const followerTokens = await tokensForUsers(supabase, followerIds);
 
     const { data: parkedTimers } = await supabase
       .from("active_timers")
@@ -111,25 +165,21 @@ Deno.serve(async (req) => {
       .in("complex_id", nearIdList)
       .gt("expires_at", new Date().toISOString());
 
-    const parkedUserIds = (parkedTimers ?? []).map((t) => t.user_id);
-    let parkedProfiles: { id: string; push_token: string }[] = [];
+    const parkedUserIds = [...new Set((parkedTimers ?? []).map((t) => t.user_id))];
+    let parkedTokenMap = new Map<string, string>();
     if (parkedUserIds.length > 0) {
-      const { data } = await supabase
+      const { data: parkedProfiles } = await supabase
         .from("profiles")
-        .select("id, push_token")
+        .select("id")
         .in("id", parkedUserIds)
-        .not("push_token", "is", null)
         .eq("nearby_sighting_alerts", true);
-      parkedProfiles = data ?? [];
+      const eligibleParked = (parkedProfiles ?? []).map((p) => p.id);
+      parkedTokenMap = await tokensForUsers(supabase, eligibleParked);
     }
 
     const allRecipients = new Map<string, string>();
-    for (const f of followers ?? []) {
-      if (f.push_token) allRecipients.set(f.id, f.push_token);
-    }
-    for (const p of parkedProfiles) {
-      if (p.push_token) allRecipients.set(p.id, p.push_token);
-    }
+    for (const [id, tok] of followerTokens) allRecipients.set(id, tok);
+    for (const [id, tok] of parkedTokenMap) allRecipients.set(id, tok);
 
     if (sighting.user_id) allRecipients.delete(sighting.user_id);
 
