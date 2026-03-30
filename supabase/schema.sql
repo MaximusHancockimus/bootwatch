@@ -7,6 +7,7 @@ create table public.profiles (
   display_name text,
   saved_complexes text[] default '{}',
   push_token text,
+  nearby_sighting_alerts boolean not null default true,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );

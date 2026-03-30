@@ -1,6 +1,6 @@
 # Setting Up the Sighting Notification Webhook
 
-This edge function sends push notifications to users who follow a complex when a new sighting is reported there.
+This edge function sends push notifications when a new sighting is inserted. Recipients include anyone who **follows** a complex **or** has an **active parking timer** at that complex **or** at any complex within **~450 m** (~1–2 short blocks) of the sighting. Distance uses the sighting’s **latitude/longitude** (reporter location) when present, with fallback to the reported complex’s center.
 
 ## Step 1: Deploy the Edge Function
 
@@ -34,14 +34,16 @@ supabase functions deploy notify-sighting
 
 1. User submits a sighting → row inserted into `sightings` table
 2. Database webhook fires → calls the `notify-sighting` edge function
-3. Edge function queries `profiles` for users who:
-   - Have `saved_complexes` containing the sighting's `complex_id`
+3. Edge function loads the sighting row, builds the set of **nearby complex IDs** (within **450 m** of the sighting point, plus the reported `complex_id` always included), then finds users who:
+   - Have `saved_complexes` **overlapping** any of those IDs, **or**
+   - Have a row in `active_timers` for any of those IDs with `expires_at` in the future
+   - Have `nearby_sighting_alerts = true` on `profiles` (default; users can turn off in the app Profile tab)
    - Have a non-null `push_token`
    - Are NOT the person who reported (no self-notifications)
 4. Sends push notifications via Expo's push API
-5. User's phone shows: "Booter spotted at The Cove!"
+5. User's phone shows e.g. "Booter spotted near The Cove!" with body text mentioning **nearby / within a few blocks**
 
 ## Notification Content
 
-- **Spotter report**: "Booter spotted at {complex}!" / "A boot truck was just reported nearby."
-- **Booted report**: "Someone got booted at {complex}!" / "A community member just reported getting booted."
+- **Spotter report**: "Booter spotted near {complex}!" / body references **within a few blocks**
+- **Booted report**: "Someone got booted near {complex}!" / body warns if parked **nearby**
