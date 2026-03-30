@@ -38,6 +38,7 @@ const signageOpts = ['moderate', 'well-marked', 'sneaky', 'moderate', 'sneaky', 
  *   enforcement: string — alias for bootingCompany (e.g. "RC Booting", "Guardian", "Unknown")
  *   weekday_hours / friday_hours: { start, end } — used to compose notes if notes omitted
  *   variants: string[] — e.g. Haven buildings; appended to composed notes
+ *   peak_activity_hint: string — optional; shown when sighting stats are below threshold
  */
 function pickVisitorLimit(row, i) {
   if (Object.prototype.hasOwnProperty.call(row, 'visitorTimeLimitMinutes')) {
@@ -159,6 +160,10 @@ for (let i = 0; i < data.length; i++) {
     notes: pickNotes(row),
     wh: pickWeekdayHoursForRow(row),
     fh: pickFridayHoursForRow(row),
+    peakHint:
+      row.peak_activity_hint != null && String(row.peak_activity_hint).trim() !== ''
+        ? String(row.peak_activity_hint).trim()
+        : undefined,
   });
 }
 
@@ -214,6 +219,9 @@ for (const r of rows) {
         `    visitorFridayHours: { start: ${JSON.stringify(r.fh.start)}, end: ${JSON.stringify(r.fh.end)} },`,
       );
     }
+  }
+  if (r.peakHint) {
+    parts.push(`    peakActivityHint: ${JSON.stringify(r.peakHint)},`);
   }
   parts.push(`    notes: ${r.notes === PLACEHOLDER_NOTE ? 'PLACEHOLDER_NOTE' : JSON.stringify(r.notes)},`);
   parts.push(`  },`);

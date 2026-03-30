@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Image, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
-import { useRoute } from '@react-navigation/native';
+import { useFocusEffect, useRoute } from '@react-navigation/native';
 import { complexes, CUSTOM_TIMER_ID, getComplexById } from '../data/complexes';
 import { useParkingTimer, TimerPhase } from '../hooks/useParkingTimer';
 import RiskBadge from '../components/RiskBadge';
@@ -51,6 +51,24 @@ export default function TimerScreen() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [customMinutes, setCustomMinutes] = useState('');
   const [showSelector, setShowSelector] = useState(false);
+  const [showPushExplainer, setShowPushExplainer] = useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      setShowPushExplainer(timer.permissionStatus === 'granted');
+    }, [timer.permissionStatus]),
+  );
+
+  useEffect(() => {
+    const onSetup = !timer.isRunning && timer.phase !== 'expired';
+    if (onSetup && timer.permissionStatus === 'granted') {
+      setShowPushExplainer(true);
+    }
+  }, [timer.isRunning, timer.phase, timer.permissionStatus]);
+
+  const dismissPushExplainer = useCallback(() => {
+    setShowPushExplainer(false);
+  }, []);
 
   // Handle "Park Here" navigation from MapScreen
   useEffect(() => {
@@ -195,6 +213,23 @@ export default function TimerScreen() {
       <Text style={styles.heading}>Start a Parking Timer</Text>
       <Text style={styles.subheading}>Select where you're parked</Text>
 
+      {showPushExplainer && (
+        <View style={styles.pushExplainerRow}>
+          <Ionicons name="notifications-outline" size={18} color={colors.primary} />
+          <Text style={styles.pushExplainerText} numberOfLines={2}>
+            We’ll alert you for low time and nearby booter reports.
+          </Text>
+          <Pressable
+            onPress={dismissPushExplainer}
+            accessibilityLabel="Dismiss notification info"
+            hitSlop={12}
+            style={styles.pushExplainerClose}
+          >
+            <Ionicons name="close" size={20} color={colors.textSecondary} />
+          </Pressable>
+        </View>
+      )}
+
       {/* Selected complex preview */}
       {selectedComplex && !showSelector && (
         <Pressable style={styles.selectedCard} onPress={() => setShowSelector(true)}>
@@ -301,6 +336,30 @@ function createStyles(colors: any) {
     fontFamily: fonts.body,
     color: colors.textSecondary,
     marginBottom: spacing.lg,
+  },
+
+  pushExplainerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: borderRadius.sm,
+    marginBottom: spacing.md,
+    backgroundColor: colors.infoTint,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+  },
+  pushExplainerText: {
+    flex: 1,
+    fontSize: fontSize.xs,
+    fontFamily: fonts.body,
+    color: colors.textSecondary,
+    lineHeight: 16,
+  },
+  pushExplainerClose: {
+    padding: spacing.xs,
+    marginRight: -spacing.xs,
   },
 
   // Selected complex card

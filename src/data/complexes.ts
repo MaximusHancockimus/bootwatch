@@ -219,6 +219,7 @@ export const complexes: Complex[] = [
     riskLevel: 'unknown',
     visitorWeekdayHours: { start: "10:00", end: "22:00" },
     visitorFridayHours: { start: "10:00", end: "00:00" },
+    peakActivityHint: "Most reports were around 3pm and 12am.",
     notes: "Visitor parking up to 2 hours when applicable.",
   },
   {
