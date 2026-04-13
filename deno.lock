@@ -1,0 +1,51 @@
+{
+  "version": "5",
+  "redirects": {
+    "https://esm.sh/@supabase/supabase-js@2": "https://esm.sh/@supabase/supabase-js@2.101.0"
+  },
+  "remote": {
+    "https://esm.sh/@supabase/supabase-js@2.101.0": "a6c343bdb28042c7ae01e4e3f5ae0ced86b69edada6c739538fc7eab3bf09144"
+  },
+  "workspace": {
+    "packageJson": {
+      "dependencies": [
+        "npm:@expo-google-fonts/dm-sans@~0.4.2",
+        "npm:@expo-google-fonts/outfit@~0.4.3",
+        "npm:@expo/metro-runtime@~55.0.6",
+        "npm:@expo/vector-icons@^15.0.2",
+        "npm:@react-native-async-storage/async-storage@2.2.0",
+        "npm:@react-navigation/bottom-tabs@^7.15.5",
+        "npm:@react-navigation/native@^7.1.33",
+        "npm:@supabase/supabase-js@^2.99.0",
+        "npm:@types/leaflet@^1.9.21",
+        "npm:@types/react@~19.2.2",
+        "npm:async-storage@0.1",
+        "npm:expo-apple-authentication@~55.0.9",
+        "npm:expo-auth-session@~55.0.9",
+        "npm:expo-blur@~55.0.10",
+        "npm:expo-constants@~55.0.7",
+        "npm:expo-crypto@~55.0.10",
+        "npm:expo-device@~55.0.9",
+        "npm:expo-font@~55.0.4",
+        "npm:expo-haptics@~55.0.9",
+        "npm:expo-image-picker@~55.0.11",
+        "npm:expo-linear-gradient@~55.0.9",
+        "npm:expo-location@~55.1.2",
+        "npm:expo-notifications@~55.0.11",
+        "npm:expo-status-bar@~55.0.4",
+        "npm:expo-web-browser@~55.0.10",
+        "npm:expo@~55.0.5",
+        "npm:leaflet@^1.9.4",
+        "npm:react-dom@19.2.0",
+        "npm:react-native-maps@1.26.20",
+        "npm:react-native-safe-area-context@~5.6.2",
+        "npm:react-native-screens@4.23",
+        "npm:react-native-url-polyfill@3",
+        "npm:react-native-web@0.21",
+        "npm:react-native@0.83.2",
+        "npm:react@19.2.0",
+        "npm:typescript@~5.9.2"
+      ]
+    }
+  }
+}

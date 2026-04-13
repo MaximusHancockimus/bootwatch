@@ -7,7 +7,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { complexes } from '../data/complexes';
 import { ReportType } from '../types/sighting';
-import { RISK_CONFIG } from '../utils/risk';
+import { getVisitorLimitMarkerColor } from '../utils/visitorLimitColors';
 import { fontSize, spacing, borderRadius, shadowFloat, fonts } from '../theme';
 import { useTheme } from '../context/ThemeContext';
 
@@ -227,7 +227,7 @@ export default function ReportSightingModal({ visible, onClose, onSuccess }: Pro
                   style={[styles.item, selectedComplexId === c.id && styles.itemSelected]}
                   onPress={() => setSelectedComplexId(c.id)}
                 >
-                  <View style={[styles.dot, { backgroundColor: RISK_CONFIG[c.riskLevel].color }]} />
+                  <View style={[styles.dot, { backgroundColor: getVisitorLimitMarkerColor(c.visitorTimeLimitMinutes) }]} />
                   <Text style={styles.itemText}>{c.name}</Text>
                   {selectedComplexId === c.id && (
                     <Ionicons name="checkmark-circle" size={20} color={colors.primary} />

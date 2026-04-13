@@ -8,10 +8,10 @@ import { useSightings } from '../hooks/useSightings';
 import { useSavedComplexes } from '../hooks/useSavedComplexes';
 import { useHeatData, getHeatLevel, HEAT_COLORS, HEAT_LABELS } from '../hooks/useHeatData';
 import ComplexDetailSheet from '../components/ComplexDetailSheet';
-import RiskBadge from '../components/RiskBadge';
 import { fontSize, fontWeight, spacing, borderRadius, shadowFloat, shadowCard, fonts } from '../theme';
 import { useTheme } from '../context/ThemeContext';
 import { formatVisitorLimitMinutes } from '../utils/parkingDisplay';
+import { VISITOR_LIMIT_LEGEND, getVisitorLimitMarkerColor } from '../utils/visitorLimitColors';
 
 let NativeMap: any = null;
 let WebMap: any = null;
@@ -30,6 +30,7 @@ export default function MapScreen() {
   const [sheetVisible, setSheetVisible] = useState(false);
   const [panelExpanded, setPanelExpanded] = useState(false);
   const [mapMode, setMapMode] = useState<MapMode>('complexes');
+  const [mapLegendExpanded, setMapLegendExpanded] = useState(true);
   const navigation = useNavigation<any>();
   const { getLatestSighting, error: sightingsError, refresh: refreshSightings } = useSightings();
   const { isSaved, toggle: toggleSave } = useSavedComplexes();
@@ -123,23 +124,49 @@ export default function MapScreen() {
             onPress={() => setMapMode('heatmap')}
           >
             <Ionicons name="flame-outline" size={14} color={mapMode === 'heatmap' ? colors.danger : colors.textSecondary} />
-            <Text style={[styles.modeButtonText, mapMode === 'heatmap' && styles.modeButtonTextActive]}>Heat Map</Text>
+            <Text
+              style={[styles.modeButtonText, mapMode === 'heatmap' && styles.modeButtonTextActive, styles.modeButtonTextWrap]}
+              numberOfLines={2}
+            >
+              Booter activity
+            </Text>
           </Pressable>
         </View>
       </View>
 
-      {/* Legend (heat map mode only) */}
-      {mapMode === 'heatmap' && (
-        <View style={styles.legend}>
-          <Text style={styles.legendTitle}>Last 30 days</Text>
-          {(['high', 'moderate', 'low', 'none'] as const).map((level) => (
-            <View key={level} style={styles.legendRow}>
-              <View style={[styles.legendDot, { backgroundColor: HEAT_COLORS[level] }]} />
-              <Text style={styles.legendLabel}>{HEAT_LABELS[level]}</Text>
-            </View>
-          ))}
-        </View>
-      )}
+      {/* Map key — visitor limits (complexes) or activity tiers (booter activity); collapsible */}
+      <View style={styles.legend}>
+        <Pressable
+          style={styles.legendHeader}
+          onPress={() => setMapLegendExpanded((e) => !e)}
+          accessibilityRole="button"
+          accessibilityLabel={mapLegendExpanded ? 'Hide map key' : 'Show map key'}
+          accessibilityState={{ expanded: mapLegendExpanded }}
+        >
+          <Text style={styles.legendTitle}>
+            {mapMode === 'heatmap' ? 'Last 30 days' : 'Visitor limit'}
+          </Text>
+          <Ionicons
+            name={mapLegendExpanded ? 'chevron-up' : 'chevron-down'}
+            size={16}
+            color={colors.textSecondary}
+          />
+        </Pressable>
+        {mapLegendExpanded &&
+          (mapMode === 'heatmap'
+            ? (['high', 'moderate', 'low', 'none'] as const).map((level) => (
+                <View key={level} style={styles.legendRow}>
+                  <View style={[styles.legendDot, { backgroundColor: HEAT_COLORS[level] }]} />
+                  <Text style={styles.legendLabel}>{HEAT_LABELS[level]}</Text>
+                </View>
+              ))
+            : VISITOR_LIMIT_LEGEND.map((row) => (
+                <View key={row.label} style={styles.legendRow}>
+                  <View style={[styles.legendDot, { backgroundColor: row.color }]} />
+                  <Text style={styles.legendLabel}>{row.label}</Text>
+                </View>
+              )))}
+      </View>
 
       {/* Collapsible bottom panel */}
       <View style={[styles.panel, panelExpanded && styles.panelExpanded]}>
@@ -162,6 +189,7 @@ export default function MapScreen() {
             {filtered.map((c) => {
               const heat = getEntry(c.id);
               const level = getHeatLevel(heat.count);
+              const limitPin = getVisitorLimitMarkerColor(c.visitorTimeLimitMinutes);
               return (
                 <Pressable key={c.id} style={styles.card} onPress={() => handleMarkerPress(c)}>
                   <View style={styles.cardHeader}>
@@ -174,7 +202,16 @@ export default function MapScreen() {
                         </Text>
                       </View>
                     ) : (
-                      <RiskBadge level={c.riskLevel} />
+                      <View
+                        style={[
+                          styles.limitBadge,
+                          { borderColor: limitPin, backgroundColor: `${limitPin}22` },
+                        ]}
+                      >
+                        <Text style={[styles.limitBadgeText, { color: limitPin }]}>
+                          {formatVisitorLimitMinutes(c.visitorTimeLimitMinutes)}
+                        </Text>
+                      </View>
                     )}
                   </View>
                   <View style={styles.cardMeta}>
@@ -295,6 +332,10 @@ function createStyles(colors: any) {
     color: colors.text,
     fontWeight: fontWeight.semibold,
   },
+  modeButtonTextWrap: {
+    textAlign: 'center',
+    lineHeight: fontSize.sm * 1.2,
+  },
 
   // Legend
   legend: {
@@ -309,13 +350,22 @@ function createStyles(colors: any) {
     borderWidth: 1,
     borderColor: colors.border,
     gap: spacing.xs,
+    maxWidth: 220,
     ...shadowFloat,
+  },
+  legendHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+    marginBottom: 0,
+    paddingVertical: 2,
   },
   legendTitle: {
     fontSize: fontSize.xs,
     fontFamily: fonts.display,
     color: colors.textSecondary,
-    marginBottom: 2,
+    flex: 1,
   },
   legendRow: {
     flexDirection: 'row',
@@ -422,6 +472,18 @@ function createStyles(colors: any) {
   heatBadgeText: {
     fontSize: fontSize.xs,
     fontWeight: fontWeight.semibold,
+  },
+  limitBadge: {
+    maxWidth: '46%',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    borderRadius: borderRadius.full,
+    borderWidth: 1,
+  },
+  limitBadgeText: {
+    fontSize: fontSize.xs,
+    fontFamily: fonts.bodyMedium,
+    textAlign: 'right',
   },
   cardMeta: {
     flexDirection: 'row',

@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Complex } from '../types/complex';
-import { RISK_CONFIG } from '../utils/risk';
+import { getVisitorLimitMarkerColor } from '../utils/visitorLimitColors';
 import { REXBURG_CENTER } from '../data/complexes';
 
 /** Distinct from risk pins (green/yellow/red) so “you are here” is obvious. */
@@ -86,7 +86,8 @@ export default function WebMap({ complexes, onMarkerPress, colorOverrides }: Pro
     markersRef.current = [];
 
     complexes.forEach((complex) => {
-      const color = colorOverrides?.get(complex.id) ?? RISK_CONFIG[complex.riskLevel].color;
+      const color =
+        colorOverrides?.get(complex.id) ?? getVisitorLimitMarkerColor(complex.visitorTimeLimitMinutes);
       const marker = L.marker([complex.latitude, complex.longitude], {
         icon: createMarkerIcon(color),
       })

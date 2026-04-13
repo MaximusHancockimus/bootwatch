@@ -2,7 +2,7 @@ import { forwardRef } from 'react';
 import { StyleSheet, View } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
 import { Complex } from '../types/complex';
-import { RISK_CONFIG } from '../utils/risk';
+import { getVisitorLimitMarkerColor } from '../utils/visitorLimitColors';
 import { REXBURG_CENTER } from '../data/complexes';
 
 interface Props {
@@ -24,7 +24,8 @@ function PinMarker({ color }: { color: string }) {
 const NativeMap = forwardRef<MapView, Props>(({ complexes, onMarkerPress, colorOverrides }, ref) => (
   <MapView ref={ref} style={styles.map} initialRegion={REXBURG_CENTER} showsUserLocation>
     {complexes.map((complex) => {
-      const color = colorOverrides?.get(complex.id) ?? RISK_CONFIG[complex.riskLevel].color;
+      const color =
+        colorOverrides?.get(complex.id) ?? getVisitorLimitMarkerColor(complex.visitorTimeLimitMinutes);
       return (
         <Marker
           key={complex.id}

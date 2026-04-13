@@ -137,7 +137,7 @@ Final pass before putting the app in real users' hands.
 - [x] **8C** — Error handling: `ErrorBoundary` wrapping app, error states in `useSightings`/`useHeatData`/`useSavedComplexes`, retry UI on Feed & Map, photo upload failure warning
 - [x] **8D** — Performance pass: memoized `SightingCard` with `React.memo`, `useCallback` for render items, TTL cache on heat data (60s)
 - [ ] **8.5** — Write App Store / Google Play listing copy and screenshots
-- [ ] **8.6** — Configure EAS Build for production builds
+- [x] **8.6** — Configure EAS Build for production builds (`eas.json`, `app.config.js`, npm scripts)
 - [ ] **8.7** — Beta test with 10-20 friends, collect feedback, fix critical bugs
 - [ ] **8.8** — Submit to App Store and Google Play
 

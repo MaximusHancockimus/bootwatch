@@ -75,7 +75,7 @@ export function useHeatData() {
       setHeatMap(map);
       lastFetchRef.current = Date.now();
     } catch {
-      setError('Failed to load heat map data');
+      setError('Failed to load activity data');
     }
     setLoading(false);
   }, []);
