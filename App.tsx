@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { NavigationContainer, NavigationContainerRef } from '@react-navigation/native';
+import Constants from 'expo-constants';
 import { StatusBar } from 'expo-status-bar';
 import { ActivityIndicator, Platform, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -13,6 +14,9 @@ import OnboardingScreen from './src/screens/OnboardingScreen';
 import ErrorBoundary from './src/components/ErrorBoundary';
 
 const ONBOARDING_KEY = '@bootwatch_onboarded';
+
+const WEB_DOCUMENT_TITLE =
+  Constants.expoConfig?.name ?? Constants.expoConfig?.slug ?? 'BootWatch';
 
 function RootNavigator() {
   const { user, loading } = useAuth();
@@ -64,7 +68,13 @@ export default function App() {
     <ErrorBoundary>
       <ThemeProvider>
         <AuthProvider>
-          <NavigationContainer ref={navigationRef}>
+          <NavigationContainer
+            ref={navigationRef}
+            documentTitle={{
+              formatter: (options, route) =>
+                options?.title ?? route?.name ?? WEB_DOCUMENT_TITLE,
+            }}
+          >
             <RootNavigator />
             <ThemedStatusBar />
           </NavigationContainer>

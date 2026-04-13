@@ -11,6 +11,7 @@ import { useTheme } from '../context/ThemeContext';
 import { showTimerMascot } from '../config/features';
 import ScreenGradientBackdrop from '../components/ScreenGradientBackdrop';
 import { formatVisitorLimitMinutes } from '../utils/parkingDisplay';
+import { getVisitorLimitMarkerColor } from '../utils/visitorLimitColors';
 
 const TIMER_ON_WATCH_IMAGE = require('../../assets/timer-on-watch.png');
 
@@ -284,7 +285,7 @@ export default function TimerScreen() {
               style={[styles.selectorItem, selectedId === c.id && styles.selectorItemActive]}
               onPress={() => { setSelectedId(c.id); setShowSelector(false); }}
             >
-              <View style={[styles.riskDot, { backgroundColor: colors[c.riskLevel === 'high' ? 'danger' : c.riskLevel === 'moderate' ? 'warning' : 'safe'] }]} />
+              <View style={[styles.riskDot, { backgroundColor: getVisitorLimitMarkerColor(c.visitorTimeLimitMinutes) }]} />
               <View style={styles.selectorItemContent}>
                 <Text style={styles.selectorItemText}>{c.name}</Text>
                 <Text style={styles.selectorItemMeta}>{c.visitorTimeLimitMinutes ?? '?'} min</Text>

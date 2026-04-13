@@ -26,13 +26,11 @@ const PLACEHOLDER_NOTE =
 /** Cycling defaults only when a JSON row omits the field (see rexburg-housing.json). */
 const limits = [45, 60, 30, 45, 30, 60];
 const risks = ['moderate', 'low', 'high', 'moderate', 'high', 'low'];
-const signageOpts = ['moderate', 'well-marked', 'sneaky', 'moderate', 'sneaky', 'well-marked'];
 
 /**
  * Optional fields per object in rexburg-housing.json (all optional except name/lat/lng):
  *   visitorTimeLimitMinutes: number | null  — null = no posted limit / unclear
  *   bootingCompany: string | null
- *   signageQuality: 'well-marked' | 'moderate' | 'sneaky' | 'unknown'
  *   riskLevel: 'high' | 'moderate' | 'low' | 'unknown'
  *   notes: string — verbatim or summary from the sign; cite photo filename if useful
  *   enforcement: string — alias for bootingCompany (e.g. "RC Booting", "Guardian", "Unknown")
@@ -155,7 +153,6 @@ for (let i = 0; i < data.length; i++) {
     lng: row.lng,
     lim: pickVisitorLimit(row, i),
     risk: pickString(row, 'riskLevel', risks[i % risks.length]),
-    sig: pickString(row, 'signageQuality', signageOpts[i % signageOpts.length]),
     boot: pickBootingCompany(row),
     notes: pickNotes(row),
     wh: pickWeekdayHoursForRow(row),
@@ -204,7 +201,6 @@ for (const r of rows) {
   parts.push(`    longitude: ${r.lng},`);
   parts.push(`    visitorTimeLimitMinutes: ${r.lim === null ? 'null' : r.lim},`);
   parts.push(`    bootingCompany: ${r.boot === null ? 'null' : JSON.stringify(r.boot)},`);
-  parts.push(`    signageQuality: '${r.sig}',`);
   parts.push(`    riskLevel: '${r.risk}',`);
   if (r.wh) {
     parts.push(
@@ -248,7 +244,7 @@ for (let i = 0; i < rows.length; i++) {
   const bootSql = r.boot === null ? 'null' : sqlQuote(r.boot);
   const noteSql = sqlQuote(r.notes);
   const line =
-    `  (${sqlQuote(r.id)}, ${sqlQuote(r.name)}, ${sqlQuote('Rexburg, ID')}, ${r.lat}, ${r.lng}, ${limSql}, ${bootSql}, ${sqlQuote(r.sig)}, ${sqlQuote(r.risk)}, ${noteSql})` +
+    `  (${sqlQuote(r.id)}, ${sqlQuote(r.name)}, ${sqlQuote('Rexburg, ID')}, ${r.lat}, ${r.lng}, ${limSql}, ${bootSql}, ${sqlQuote('unknown')}, ${sqlQuote(r.risk)}, ${noteSql})` +
     (i < rows.length - 1 ? ',' : '');
   sql.push(line);
 }

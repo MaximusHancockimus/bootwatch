@@ -27,7 +27,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const [mode, setModeState] = useState<ThemeMode>('dark');
   const [loaded, setLoaded] = useState(false);
 
-  const [fontsLoaded] = useFonts({
+  const [fontsLoaded, fontError] = useFonts({
     Outfit_600SemiBold,
     Outfit_700Bold,
     DMSans_400Regular,
@@ -52,7 +52,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const isDark = mode === 'dark' || (mode === 'system' && systemScheme === 'dark');
   const colors = isDark ? darkColors : lightColors;
 
-  if (!loaded || !fontsLoaded) return null;
+  const fontsReady = fontsLoaded || fontError != null;
+  if (!loaded || !fontsReady) return null;
 
   return (
     <ThemeContext.Provider value={{ mode, isDark, colors, setMode }}>
