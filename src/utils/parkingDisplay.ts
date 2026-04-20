@@ -16,9 +16,12 @@ export function formatVisitorTimeRange12(start: string, end: string): string {
   return `${formatTime24To12(start)}–${formatTime24To12(end)}`;
 }
 
-/** Visitor limit for UI: under 60 min as minutes; otherwise hours / hours + minutes. */
+/**
+ * Visitor limit for UI: under 60 min as minutes; otherwise hours / hours + minutes.
+ * `null` / `0` means the complex has no posted time limit (lowest risk), NOT unknown.
+ */
 export function formatVisitorLimitMinutes(minutes: number | null | undefined): string {
-  if (minutes == null || minutes <= 0) return 'Unknown';
+  if (minutes == null || minutes <= 0) return 'No time limit';
   if (minutes < 60) return `${minutes} min`;
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;

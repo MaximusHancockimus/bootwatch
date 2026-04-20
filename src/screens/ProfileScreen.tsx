@@ -1,6 +1,19 @@
-import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Image,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import { complexes } from '../data/complexes';
@@ -9,10 +22,116 @@ import { AVATAR_COLORS, DEFAULT_AVATAR_COLOR } from '../utils/avatarColors';
 import { fontSize, spacing, borderRadius, shadowCard, fonts, type AppColors } from '../theme';
 import { useTheme } from '../context/ThemeContext';
 
+const DISPLAY_NAME_CHANGES_PER_WEEK = 2;
+const DISPLAY_NAME_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+const DISPLAY_NAME_MIN_LENGTH = 2;
+const DISPLAY_NAME_MAX_LENGTH = 30;
+// Mirror of the server-side charset rule in validate_display_name().
+const DISPLAY_NAME_ALLOWED_RE = /^[A-Za-z0-9 '._-]+$/;
+
+function friendlyDisplayNameError(error: { message?: string; code?: string }): string {
+  const msg = error.message ?? '';
+  const code = (error as { code?: string }).code ?? '';
+  if (msg.includes('display_name_change_limit_reached')) {
+    return 'You can only change your display name 2 times per week.';
+  }
+  if (msg.includes('display_name_reserved')) {
+    return 'That name is reserved. Please choose another.';
+  }
+  if (msg.includes('display_name_banned')) {
+    return "That name isn't allowed. Please choose another.";
+  }
+  if (msg.includes('display_name_invalid_characters')) {
+    return "Only letters, numbers, spaces, and ' . - _ are allowed.";
+  }
+  if (msg.includes('display_name_too_short')) {
+    return `Display name must be at least ${DISPLAY_NAME_MIN_LENGTH} characters.`;
+  }
+  if (msg.includes('display_name_too_long')) {
+    return `Display name must be at most ${DISPLAY_NAME_MAX_LENGTH} characters.`;
+  }
+  if (code === '23505' || /profiles_display_name_ci_unique|duplicate key/i.test(msg)) {
+    return 'That name is already taken. Please choose another.';
+  }
+  return error.message || 'Could not update display name.';
+}
+
 interface Profile {
   display_name: string | null;
   saved_complexes: string[];
   avatar_color: string | null;
+  avatar_url: string | null;
+  display_name_change_history: string[] | null;
+}
+
+// Allowed avatar formats. Keep GIF in the list so users can use animated
+// avatars, but enforce a size cap below so egress stays bounded.
+const ALLOWED_AVATAR_EXTS = ['jpg', 'jpeg', 'png', 'webp', 'heic', 'gif'] as const;
+type AllowedAvatarExt = (typeof ALLOWED_AVATAR_EXTS)[number];
+
+// 2 MB client-side cap. Matches the bucket-level limit in
+// `supabase/add_profile_avatar.sql`; we check both so users get a friendly
+// message before the upload round-trip and the server still rejects if the
+// client check is bypassed.
+const AVATAR_MAX_BYTES = 2 * 1024 * 1024;
+
+const MIME_TO_EXT: Record<string, AllowedAvatarExt> = {
+  'image/jpeg': 'jpeg',
+  'image/jpg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+  'image/heic': 'heic',
+  'image/gif': 'gif',
+};
+
+// Path in the storage bucket: {user.id}/avatar-{ts}.{ext}. Keeping file names
+// per-upload (rather than overwriting a fixed name) sidesteps CDN cache issues
+// that otherwise make changes look like they didn't take.
+//
+// Prefer the mime type from the picker (reliable) and fall back to the URI
+// extension (unreliable on blob: URLs from web). If neither identifies a
+// supported format we return null so the caller can reject the upload; that
+// keeps unknown formats from landing in the bucket with a wrong content-type.
+function buildAvatarPath(
+  userId: string,
+  uri: string,
+  mimeType: string | undefined,
+): { path: string; contentType: string } | null {
+  const fromMime = mimeType ? MIME_TO_EXT[mimeType.toLowerCase()] : undefined;
+  const rawExt = (uri.split('?')[0].split('.').pop() ?? '').toLowerCase();
+  const fromExt = (ALLOWED_AVATAR_EXTS as readonly string[]).includes(rawExt)
+    ? (rawExt as AllowedAvatarExt)
+    : undefined;
+  const ext = fromMime ?? fromExt;
+  if (!ext) return null;
+  const contentType = ext === 'jpg' ? 'image/jpeg' : `image/${ext}`;
+  return { path: `${userId}/avatar-${Date.now()}.${ext}`, contentType };
+}
+
+// Parse a public-URL back to the storage path so we can delete the old file
+// when the user replaces or removes their photo.
+function extractAvatarStoragePath(publicUrl: string | null | undefined): string | null {
+  if (!publicUrl) return null;
+  const marker = '/storage/v1/object/public/avatars/';
+  const idx = publicUrl.indexOf(marker);
+  if (idx === -1) return null;
+  return decodeURIComponent(publicUrl.substring(idx + marker.length));
+}
+
+function recentChangeTimestamps(history: string[] | null | undefined): number[] {
+  if (!history) return [];
+  const cutoff = Date.now() - DISPLAY_NAME_WINDOW_MS;
+  return history
+    .map((t) => new Date(t).getTime())
+    .filter((t) => Number.isFinite(t) && t > cutoff)
+    .sort((a, b) => a - b);
+}
+
+function nextAvailableChange(history: string[] | null | undefined): Date | null {
+  const recent = recentChangeTimestamps(history);
+  if (recent.length < DISPLAY_NAME_CHANGES_PER_WEEK) return null;
+  const oldestInWindow = recent[recent.length - DISPLAY_NAME_CHANGES_PER_WEEK];
+  return new Date(oldestInWindow + DISPLAY_NAME_WINDOW_MS);
 }
 
 export default function ProfileScreen() {
@@ -22,13 +141,19 @@ export default function ProfileScreen() {
   const [selectedColor, setSelectedColor] = useState<string>(DEFAULT_AVATAR_COLOR);
   const [saving, setSaving] = useState(false);
   const [nearbyAlerts, setNearbyAlerts] = useState(true);
+  const [editingName, setEditingName] = useState(false);
+  const [draftName, setDraftName] = useState('');
+  const [nameSaving, setNameSaving] = useState(false);
+  const [nameError, setNameError] = useState<string | null>(null);
+  const [photoUploading, setPhotoUploading] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
   const { savedIds, toggle: toggleComplex } = useSavedComplexes();
 
   useEffect(() => {
     if (!user) return;
     supabase
       .from('profiles')
-      .select('display_name, saved_complexes, avatar_color, nearby_sighting_alerts')
+      .select('display_name, saved_complexes, avatar_color, nearby_sighting_alerts, display_name_change_history, avatar_url')
       .eq('id', user.id)
       .single()
       .then(({ data }) => {
@@ -40,10 +165,199 @@ export default function ProfileScreen() {
       });
   }, [user]);
 
+  const recentChangeCount = useMemo(
+    () => recentChangeTimestamps(profile?.display_name_change_history).length,
+    [profile?.display_name_change_history],
+  );
+  const remainingChanges = Math.max(0, DISPLAY_NAME_CHANGES_PER_WEEK - recentChangeCount);
+  const nextChangeDate = useMemo(
+    () => nextAvailableChange(profile?.display_name_change_history),
+    [profile?.display_name_change_history],
+  );
+  const limitReached = remainingChanges === 0;
+
+  function handleStartEditName() {
+    setDraftName(profile?.display_name ?? '');
+    setNameError(null);
+    setEditingName(true);
+  }
+
+  function handleCancelEditName() {
+    setEditingName(false);
+    setDraftName('');
+    setNameError(null);
+  }
+
+  async function handleSaveDisplayName() {
+    if (!user) return;
+    // Mirror the server normalizer: trim + collapse internal whitespace runs.
+    const next = draftName.trim().replace(/\s+/g, ' ');
+    if (next.length < DISPLAY_NAME_MIN_LENGTH) {
+      setNameError(`Display name must be at least ${DISPLAY_NAME_MIN_LENGTH} characters.`);
+      return;
+    }
+    if (next.length > DISPLAY_NAME_MAX_LENGTH) {
+      setNameError(`Display name must be at most ${DISPLAY_NAME_MAX_LENGTH} characters.`);
+      return;
+    }
+    if (!DISPLAY_NAME_ALLOWED_RE.test(next)) {
+      setNameError("Only letters, numbers, spaces, and ' . - _ are allowed.");
+      return;
+    }
+    if (next === (profile?.display_name ?? '')) {
+      handleCancelEditName();
+      return;
+    }
+
+    setNameSaving(true);
+    setNameError(null);
+    const { data, error } = await supabase
+      .from('profiles')
+      .update({ display_name: next })
+      .eq('id', user.id)
+      .select('display_name, saved_complexes, avatar_color, nearby_sighting_alerts, display_name_change_history, avatar_url')
+      .single();
+
+    if (error) {
+      setNameSaving(false);
+      setNameError(friendlyDisplayNameError(error));
+      return;
+    }
+
+    // Keep Supabase Auth user_metadata in sync so OAuth re-syncs / other clients
+    // that fall back to auth metadata (e.g. AuthContext.ensureProfile) show the
+    // same name. Non-fatal: we still consider the rename successful on failure.
+    await supabase.auth.updateUser({ data: { display_name: next } });
+
+    setNameSaving(false);
+    if (data) setProfile(data);
+    setEditingName(false);
+    setDraftName('');
+  }
+
   async function handleNearbyAlertsChange(value: boolean) {
     setNearbyAlerts(value);
     if (!user) return;
     await supabase.from('profiles').update({ nearby_sighting_alerts: value }).eq('id', user.id);
+  }
+
+  async function handlePickAvatar() {
+    if (!user) return;
+    setPhotoError(null);
+
+    if (Platform.OS !== 'web') {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        setPhotoError('Photo library permission was denied.');
+        return;
+      }
+    }
+
+    // Step 1: open the picker without cropping so we can see the mime type
+    // first. The native cropper re-encodes to a static image and would strip
+    // animation from GIFs, so we branch on the detected type below.
+    const probe = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: false,
+      quality: 1,
+    });
+    if (probe.canceled || !probe.assets[0]) return;
+
+    let asset = probe.assets[0];
+    const isGif =
+      (asset.mimeType ?? '').toLowerCase() === 'image/gif' ||
+      asset.uri.split('?')[0].toLowerCase().endsWith('.gif');
+
+    // Step 2: for non-GIFs, re-open with the square cropper so users get the
+    // familiar framing step. GIFs skip the cropper and are letter-boxed by
+    // the circular container (`resizeMode: 'cover'`) instead.
+    if (!isGif) {
+      const cropped = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.7,
+      });
+      if (cropped.canceled || !cropped.assets[0]) return;
+      asset = cropped.assets[0];
+    }
+
+    const uri = asset.uri;
+    setPhotoUploading(true);
+
+    try {
+      const pathInfo = buildAvatarPath(user.id, uri, asset.mimeType ?? undefined);
+      if (!pathInfo) {
+        throw new Error('Unsupported image format. Please pick a JPG, PNG, WebP, HEIC, or GIF.');
+      }
+      const { path, contentType } = pathInfo;
+
+      const response = await fetch(uri);
+      const blob = await response.blob();
+
+      // Enforce the size cap client-side so users see a clear message before
+      // the network round-trip. The bucket also rejects over-cap uploads, so
+      // a bypassed client can't sneak in a 40 MB GIF.
+      if (blob.size > AVATAR_MAX_BYTES) {
+        const mb = (blob.size / (1024 * 1024)).toFixed(1);
+        throw new Error(
+          `That image is ${mb} MB — profile photos must be under 2 MB. Try a smaller image${contentType === 'image/gif' ? ' or a shorter GIF' : ''}.`,
+        );
+      }
+
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(path, blob, { contentType, upsert: false });
+      if (uploadError) throw uploadError;
+
+      const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(path);
+      const publicUrl = urlData.publicUrl;
+
+      const previousPath = extractAvatarStoragePath(profile?.avatar_url);
+
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ avatar_url: publicUrl })
+        .eq('id', user.id);
+      if (updateError) throw updateError;
+
+      // Best-effort cleanup of the previous image; if it fails the row already
+      // points at the new URL so the UI is correct regardless.
+      if (previousPath && previousPath !== path) {
+        await supabase.storage.from('avatars').remove([previousPath]);
+      }
+
+      setProfile((prev) => (prev ? { ...prev, avatar_url: publicUrl } : prev));
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Could not upload photo.';
+      setPhotoError(message);
+      if (Platform.OS !== 'web') Alert.alert('Upload failed', message);
+    } finally {
+      setPhotoUploading(false);
+    }
+  }
+
+  async function handleRemoveAvatar() {
+    if (!user || !profile?.avatar_url) return;
+    setPhotoError(null);
+    setPhotoUploading(true);
+    try {
+      const previousPath = extractAvatarStoragePath(profile.avatar_url);
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ avatar_url: null })
+        .eq('id', user.id);
+      if (updateError) throw updateError;
+      if (previousPath) {
+        await supabase.storage.from('avatars').remove([previousPath]);
+      }
+      setProfile((prev) => (prev ? { ...prev, avatar_url: null } : prev));
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Could not remove photo.';
+      setPhotoError(message);
+    } finally {
+      setPhotoUploading(false);
+    }
   }
 
   async function handleColorSelect(color: string) {
@@ -54,7 +368,7 @@ export default function ProfileScreen() {
     setSaving(false);
   }
 
-  const displayName = profile?.display_name ?? user?.email?.split('@')[0] ?? 'User';
+  const displayName = profile?.display_name ?? 'User';
   const savedComplexes = complexes.filter((c) => savedIds.includes(c.id));
 
   const styles = createStyles(colors);
@@ -62,28 +376,128 @@ export default function ProfileScreen() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.header}>
-        <View style={[styles.avatar, { backgroundColor: selectedColor }]}>
-          <Text style={styles.avatarText}>{displayName.charAt(0).toUpperCase()}</Text>
-        </View>
+        <Pressable
+          onPress={handlePickAvatar}
+          disabled={photoUploading}
+          style={styles.avatarPressable}
+          accessibilityLabel={profile?.avatar_url ? 'Change profile photo' : 'Add profile photo'}
+        >
+          <View style={[styles.avatar, { backgroundColor: selectedColor }]}>
+            {profile?.avatar_url ? (
+              <Image source={{ uri: profile.avatar_url }} style={styles.avatarImage} />
+            ) : (
+              <Text style={styles.avatarText}>{displayName.charAt(0).toUpperCase()}</Text>
+            )}
+          </View>
+          {/* Badge is a sibling of `avatar` so it isn't clipped by the
+              circle's `overflow: hidden`. It overlaps both the photo and
+              the border ring instead of being cropped inside the circle. */}
+          <View style={styles.avatarBadge} pointerEvents="none">
+            {photoUploading ? (
+              <ActivityIndicator size="small" color={colors.textInverse} />
+            ) : (
+              <Ionicons name="camera" size={14} color={colors.textInverse} />
+            )}
+          </View>
+        </Pressable>
         <Text style={styles.name}>{displayName}</Text>
         <Text style={styles.email}>{user?.email}</Text>
+        {profile?.avatar_url && !photoUploading && (
+          <Pressable onPress={handleRemoveAvatar} hitSlop={8} style={styles.removePhotoButton}>
+            <Text style={styles.removePhotoText}>Remove photo</Text>
+          </Pressable>
+        )}
+        {photoError && <Text style={styles.photoErrorText}>{photoError}</Text>}
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Color</Text>
-        <View style={styles.colorGrid}>
-          {AVATAR_COLORS.map((c) => (
-            <Pressable key={c} onPress={() => handleColorSelect(c)} style={styles.colorOption}>
-              <View style={[styles.colorSwatch, { backgroundColor: c }]}>
-                {c === selectedColor && (
-                  <Ionicons name="checkmark" size={18} color="#fff" />
-                )}
-              </View>
+        <Text style={styles.sectionTitle}>Display name</Text>
+        {editingName ? (
+          <View style={styles.nameEditColumn}>
+            <TextInput
+              style={styles.nameInput}
+              value={draftName}
+              onChangeText={setDraftName}
+              autoFocus
+              autoCapitalize="words"
+              maxLength={DISPLAY_NAME_MAX_LENGTH}
+              placeholder="Your display name"
+              placeholderTextColor={colors.textSecondary}
+              editable={!nameSaving}
+            />
+            <View style={styles.nameEditActions}>
+              <Pressable onPress={handleCancelEditName} disabled={nameSaving} hitSlop={6}>
+                <Text style={styles.nameCancelText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                onPress={handleSaveDisplayName}
+                disabled={nameSaving || !draftName.trim()}
+                style={[
+                  styles.nameSaveButton,
+                  (nameSaving || !draftName.trim()) && styles.nameSaveButtonDisabled,
+                ]}
+                hitSlop={6}
+              >
+                <Text style={styles.nameSaveText}>{nameSaving ? 'Saving…' : 'Save'}</Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : (
+          <View style={styles.nameDisplayRow}>
+            <Text style={styles.nameDisplayText}>{displayName}</Text>
+            <Pressable
+              onPress={handleStartEditName}
+              disabled={limitReached}
+              style={[styles.editNameButton, limitReached && styles.editNameButtonDisabled]}
+              hitSlop={8}
+            >
+              <Ionicons
+                name="pencil"
+                size={14}
+                color={limitReached ? colors.textSecondary : colors.accent}
+              />
+              <Text
+                style={[
+                  styles.editNameButtonText,
+                  limitReached && styles.editNameButtonTextDisabled,
+                ]}
+              >
+                Edit
+              </Text>
             </Pressable>
-          ))}
-        </View>
-        {saving && <Text style={styles.savingText}>Saving...</Text>}
+          </View>
+        )}
+
+        <Text style={styles.nameHint}>
+          {limitReached && nextChangeDate
+            ? `Limit reached. You can change your display name again on ${nextChangeDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}.`
+            : `You can change your display name up to ${DISPLAY_NAME_CHANGES_PER_WEEK} times per week. ${remainingChanges} change${remainingChanges === 1 ? '' : 's'} remaining.`}
+        </Text>
+        {nameError && <Text style={styles.nameErrorText}>{nameError}</Text>}
       </View>
+
+      {/* Avatar color is only meaningful when the initial-letter fallback is
+          showing. Once the user has a profile photo the swatch picker is
+          hidden to avoid implying it affects the photo. The `avatar_color`
+          value is still kept on the profile row so it re-appears with the
+          same selection if the photo is later removed. */}
+      {!profile?.avatar_url && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Color</Text>
+          <View style={styles.colorGrid}>
+            {AVATAR_COLORS.map((c) => (
+              <Pressable key={c} onPress={() => handleColorSelect(c)} style={styles.colorOption}>
+                <View style={[styles.colorSwatch, { backgroundColor: c }]}>
+                  {c === selectedColor && (
+                    <Ionicons name="checkmark" size={18} color="#fff" />
+                  )}
+                </View>
+              </Pressable>
+            ))}
+          </View>
+          {saving && <Text style={styles.savingText}>Saving...</Text>}
+        </View>
+      )}
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Appearance</Text>
@@ -183,18 +597,69 @@ function createStyles(colors: AppColors) {
     marginBottom: spacing.xl,
     paddingTop: spacing.md,
   },
+  avatarPressable: {
+    marginBottom: spacing.sm,
+    // Relative anchor for the absolutely-positioned badge; without this the
+    // badge would position itself against the ScrollView instead of the
+    // avatar circle.
+    position: 'relative',
+    width: 72,
+    height: 72,
+  },
   avatar: {
     width: 72,
     height: 72,
     borderRadius: 36,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: spacing.sm,
+    overflow: 'hidden',
+    position: 'relative',
   },
   avatarText: {
     fontSize: fontSize.xxl,
     fontFamily: fonts.displayBold,
     color: colors.textInverse,
+  },
+  avatarImage: {
+    ...StyleSheet.absoluteFillObject,
+    width: '100%',
+    height: '100%',
+    borderRadius: 36,
+    resizeMode: 'cover',
+  },
+  avatarBadge: {
+    position: 'absolute',
+    // Pulled outward so the badge sits on the border instead of being
+    // cropped inside the circle. The `avatar` view has `overflow: hidden`
+    // which would clip anything living inside it.
+    bottom: -4,
+    right: -4,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: colors.background,
+  },
+  removePhotoButton: {
+    marginTop: spacing.xs,
+    paddingVertical: spacing.xs,
+  },
+  removePhotoText: {
+    fontSize: fontSize.xs,
+    fontFamily: fonts.bodyMedium,
+    color: colors.textSecondary,
+    textDecorationLine: 'underline',
+  },
+  photoErrorText: {
+    fontSize: fontSize.xs,
+    fontFamily: fonts.body,
+    color: colors.danger,
+    marginTop: spacing.xs,
+    textAlign: 'center',
+    maxWidth: 240,
   },
   name: {
     fontSize: fontSize.xl,
@@ -223,6 +688,96 @@ function createStyles(colors: AppColors) {
     textTransform: 'uppercase',
     letterSpacing: 0.6,
     marginBottom: 2,
+  },
+  nameDisplayRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+  },
+  nameDisplayText: {
+    flex: 1,
+    fontSize: fontSize.md,
+    fontFamily: fonts.bodyMedium,
+    color: colors.text,
+  },
+  editNameButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.accentSoft,
+  },
+  editNameButtonDisabled: {
+    backgroundColor: colors.surface,
+  },
+  editNameButtonText: {
+    fontSize: fontSize.sm,
+    fontFamily: fonts.bodyMedium,
+    color: colors.accent,
+  },
+  editNameButtonTextDisabled: {
+    color: colors.textSecondary,
+  },
+  nameEditColumn: {
+    marginTop: spacing.sm,
+    gap: spacing.sm,
+  },
+  nameInput: {
+    width: '100%',
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm + 2,
+    fontSize: fontSize.md,
+    fontFamily: fonts.body,
+    color: colors.text,
+  },
+  nameEditActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: spacing.md,
+  },
+  nameCancelText: {
+    fontSize: fontSize.sm,
+    fontFamily: fonts.bodyMedium,
+    color: colors.textSecondary,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.sm,
+  },
+  nameSaveButton: {
+    backgroundColor: colors.primary,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: borderRadius.md,
+  },
+  nameSaveButtonDisabled: {
+    opacity: 0.5,
+  },
+  nameSaveText: {
+    fontSize: fontSize.sm,
+    fontFamily: fonts.bodyMedium,
+    color: colors.textInverse,
+  },
+  nameHint: {
+    fontSize: fontSize.xs,
+    fontFamily: fonts.body,
+    color: colors.textSecondary,
+    marginTop: spacing.sm,
+    lineHeight: 18,
+  },
+  nameErrorText: {
+    fontSize: fontSize.xs,
+    fontFamily: fonts.body,
+    color: colors.danger,
+    marginTop: spacing.xs,
+    lineHeight: 18,
   },
   themeToggle: {
     flexDirection: 'row',

@@ -11,6 +11,11 @@ import {
   Text,
   View,
 } from 'react-native';
+// `expo-image` gives us an `autoplay` prop that `react-native` Image lacks.
+// We use it only for the feed avatar so animated GIFs render as a still
+// first frame — keeps the list calm and avoids parallel animations across
+// dozens of cards.
+import { Image as ExpoImage } from 'expo-image';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { useSightings } from '../hooks/useSightings';
@@ -187,6 +192,10 @@ const SightingCard = React.memo(function SightingCard({
       ? 'shield-checkmark'
       : null;
 
+  // Only show the profile photo for non-booted, non-anonymous reports. Booted
+  // posts are overridden with the lock icon; anonymous posts use the shield.
+  const showAvatarPhoto = !isBooted && !item.is_anonymous && !!item.avatar_url;
+
   const tsStyle = isActive ? styles.timestampActive : isRecent ? styles.timestampRecent : undefined;
 
   return (
@@ -195,6 +204,14 @@ const SightingCard = React.memo(function SightingCard({
         <View style={[styles.avatar, { backgroundColor: avatarBg }]}>
           {avatarIcon ? (
             <Ionicons name={avatarIcon} size={16} color={colors.textInverse} />
+          ) : showAvatarPhoto ? (
+            <ExpoImage
+              source={{ uri: item.avatar_url! }}
+              style={styles.avatarImage}
+              contentFit="cover"
+              autoplay={false}
+              transition={0}
+            />
           ) : (
             <Text style={styles.avatarText}>{initial}</Text>
           )}
@@ -309,11 +326,17 @@ function createStyles(colors: import('../theme').AppColors) {
       backgroundColor: colors.neutral,
       alignItems: 'center',
       justifyContent: 'center',
+      overflow: 'hidden',
     },
     avatarText: {
       fontSize: fontSize.md,
       fontFamily: fonts.display,
       color: colors.textInverse,
+    },
+    avatarImage: {
+      width: '100%',
+      height: '100%',
+      borderRadius: 20,
     },
     cardHeaderText: {
       flex: 1,

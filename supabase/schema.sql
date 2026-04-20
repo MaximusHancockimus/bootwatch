@@ -5,21 +5,195 @@
 create table public.profiles (
   id uuid references auth.users on delete cascade primary key,
   display_name text,
+  avatar_url text,
   saved_complexes text[] default '{}',
   nearby_sighting_alerts boolean not null default true,
+  display_name_change_history timestamptz[] not null default '{}',
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
 
--- Auto-create a profile when a user signs up
-create or replace function public.handle_new_user()
-returns trigger as $$
+-- Banned / reserved display-name patterns (edit from the dashboard as needed).
+create table public.banned_display_name_patterns (
+  id bigserial primary key,
+  pattern text not null,
+  kind text not null check (kind in ('exact', 'substring', 'regex')),
+  reason text not null check (reason in ('reserved', 'impersonation', 'profanity', 'hate', 'harassment', 'other')),
+  created_at timestamptz not null default now()
+);
+
+alter table public.banned_display_name_patterns enable row level security;
+create policy "banned_patterns public read"
+  on public.banned_display_name_patterns for select using (true);
+
+-- Case-insensitive uniqueness on display_name (skipped for NULL values).
+create unique index profiles_display_name_ci_unique
+  on public.profiles (lower(display_name))
+  where display_name is not null;
+
+-- Normalize: strip invisibles, collapse whitespace, trim, NFKC-fold.
+create or replace function public.normalize_display_name(raw text)
+returns text
+language plpgsql
+immutable
+as $$
+declare
+  s text := raw;
 begin
-  insert into public.profiles (id, display_name)
-  values (new.id, coalesce(new.raw_user_meta_data->>'display_name', split_part(new.email, '@', 1)));
+  if s is null then return null; end if;
+  begin
+    s := normalize(s, nfkc);
+  exception when others then
+    null;
+  end;
+  s := regexp_replace(s, E'[\u00AD\u200B-\u200F\u202A-\u202E\u2060-\u2064\u206A-\u206F\uFEFF]', '', 'g');
+  s := regexp_replace(s, E'[\u0001-\u001F\u007F]', '', 'g');
+  s := regexp_replace(s, '\s+', ' ', 'g');
+  s := btrim(s);
+  return s;
+end;
+$$;
+
+-- Validate: normalize + enforce charset/length + banned-word check.
+create or replace function public.validate_display_name(raw text)
+returns text
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+declare
+  s text;
+  lower_s text;
+  bad record;
+begin
+  s := public.normalize_display_name(raw);
+
+  if s is null or length(s) < 2 then
+    raise exception 'display_name_too_short' using errcode = 'P0001';
+  end if;
+  if length(s) > 30 then
+    raise exception 'display_name_too_long' using errcode = 'P0001';
+  end if;
+  if s !~ E'^[A-Za-z0-9 ''._\\-]+$' then
+    raise exception 'display_name_invalid_characters' using errcode = 'P0001';
+  end if;
+
+  lower_s := lower(s);
+  for bad in select pattern, kind, reason from public.banned_display_name_patterns loop
+    if (bad.kind = 'exact'     and lower_s = lower(bad.pattern))
+    or (bad.kind = 'substring' and position(lower(bad.pattern) in lower_s) > 0)
+    or (bad.kind = 'regex'     and lower_s ~* bad.pattern)
+    then
+      if bad.reason in ('reserved', 'impersonation') then
+        raise exception 'display_name_reserved' using errcode = 'P0001';
+      else
+        raise exception 'display_name_banned' using errcode = 'P0001';
+      end if;
+    end if;
+  end loop;
+
+  return s;
+end;
+$$;
+
+-- Combined BEFORE INSERT/UPDATE guard: validates + enforces 2-changes-per-7-days.
+create or replace function public.profiles_display_name_guard()
+returns trigger
+language plpgsql
+security invoker
+set search_path = public
+as $$
+declare
+  recent_count int;
+  kept timestamptz[];
+begin
+  if new.display_name is null then
+    return new;
+  end if;
+
+  new.display_name := public.validate_display_name(new.display_name);
+
+  if tg_op = 'INSERT' then
+    return new;
+  end if;
+
+  if new.display_name is not distinct from old.display_name then
+    return new;
+  end if;
+  if old.display_name is null then
+    return new;
+  end if;
+
+  select coalesce(array_agg(t order by t desc), '{}'::timestamptz[])
+    into kept
+  from unnest(coalesce(old.display_name_change_history, '{}'::timestamptz[])) as t
+  where t > now() - interval '30 days';
+
+  select coalesce(count(*), 0) into recent_count
+  from unnest(kept) as t where t > now() - interval '7 days';
+
+  if recent_count >= 2 then
+    raise exception 'display_name_change_limit_reached'
+      using errcode = 'P0001',
+            hint = 'You can only change your display name 2 times per week.';
+  end if;
+
+  new.display_name_change_history := kept || now();
   return new;
 end;
-$$ language plpgsql security definer;
+$$;
+
+create trigger profiles_display_name_guard
+  before insert or update of display_name on public.profiles
+  for each row execute function public.profiles_display_name_guard();
+
+-- Auto-create a profile when a user signs up. Falls back to a neutral
+-- "User#####" handle instead of the email prefix to avoid leaking personal info.
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  candidate text;
+  attempts int := 0;
+begin
+  candidate := coalesce(
+    new.raw_user_meta_data->>'display_name',
+    new.raw_user_meta_data->>'full_name',
+    new.raw_user_meta_data->>'name'
+  );
+
+  if candidate is not null then
+    begin
+      candidate := public.validate_display_name(candidate);
+    exception when others then
+      candidate := null;
+    end;
+  end if;
+
+  if candidate is null then
+    candidate := 'User' || lpad((floor(random() * 100000))::int::text, 5, '0');
+  end if;
+
+  while attempts < 5
+    and exists(select 1 from public.profiles where lower(display_name) = lower(candidate))
+  loop
+    candidate := 'User' || lpad((floor(random() * 10000000))::int::text, 7, '0');
+    attempts := attempts + 1;
+  end loop;
+
+  if exists(select 1 from public.profiles where lower(display_name) = lower(candidate)) then
+    insert into public.profiles (id, display_name) values (new.id, null);
+  else
+    insert into public.profiles (id, display_name) values (new.id, candidate);
+  end if;
+
+  return new;
+end;
+$$;
 
 create trigger on_auth_user_created
   after insert on auth.users

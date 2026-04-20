@@ -6,7 +6,7 @@ import { DEFAULT_AVATAR_COLOR } from '../utils/avatarColors';
 
 const complexMap = new Map(complexes.map((c) => [c.id, c.name]));
 
-interface ProfileInfo { display_name: string; avatar_color: string }
+interface ProfileInfo { display_name: string; avatar_color: string; avatar_url: string | null }
 
 async function fetchProfiles(userIds: string[]): Promise<Map<string, ProfileInfo>> {
   const unique = [...new Set(userIds.filter(Boolean))];
@@ -14,7 +14,7 @@ async function fetchProfiles(userIds: string[]): Promise<Map<string, ProfileInfo
 
   const { data } = await supabase
     .from('profiles')
-    .select('id, display_name, avatar_color')
+    .select('id, display_name, avatar_color, avatar_url')
     .in('id', unique);
 
   const map = new Map<string, ProfileInfo>();
@@ -22,6 +22,7 @@ async function fetchProfiles(userIds: string[]): Promise<Map<string, ProfileInfo
     map.set(p.id, {
       display_name: p.display_name ?? 'Anonymous',
       avatar_color: p.avatar_color ?? DEFAULT_AVATAR_COLOR,
+      avatar_url: p.avatar_url ?? null,
     });
   });
   return map;
@@ -36,6 +37,7 @@ function enrichSighting(row: any, profileMap: Map<string, ProfileInfo>): Sightin
     complex_name: complexMap.get(row.complex_id) ?? 'Unknown',
     display_name: anonymous ? 'Anonymous' : (profile?.display_name ?? 'Anonymous'),
     avatar_color: anonymous ? '#6B7280' : (profile?.avatar_color ?? DEFAULT_AVATAR_COLOR),
+    avatar_url: anonymous ? null : (profile?.avatar_url ?? null),
   };
 }
 

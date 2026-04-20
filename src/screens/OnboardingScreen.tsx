@@ -30,11 +30,23 @@ function getSlides(colors: AppColors): Slide[] {
       icon: 'bulb-outline',
       iconColor: colors.primary,
       title: 'How It Works',
-      subtitle: 'Three tools to keep you safe:',
+      subtitle: 'Three tools built to keep your car safe:',
       features: [
-        { icon: 'map', label: 'Risk Map', desc: 'See which complexes are high-risk before you park' },
-        { icon: 'timer', label: 'Parking Timer', desc: 'Get alerts before your time expires' },
-        { icon: 'alert-circle', label: 'Live Feed', desc: 'Real-time boot truck sightings from the community' },
+        {
+          icon: 'flame',
+          label: 'Risk Heatmap',
+          desc: 'A live, color-coded map of every Rexburg complex — visitor time limits, booting companies, and hotspots of recent boot activity at a glance.',
+        },
+        {
+          icon: 'timer',
+          label: 'Smart Parking Timer',
+          desc: 'Auto-tuned to each complex\u2019s visitor limit with alerts that warn you before time runs out, so you never come back to a boot.',
+        },
+        {
+          icon: 'analytics',
+          label: 'Community Intel',
+          desc: 'Real-time sightings from fellow students plus data insights on peak booter hours and trending high-risk complexes.',
+        },
       ],
     },
     {
