@@ -7,6 +7,13 @@ const mapsKey = process.env.GOOGLE_MAPS_API_KEY;
 module.exports = {
   expo: {
     ...appJson.expo,
+    extra: {
+      ...appJson.expo.extra,
+      eas: {
+        ...appJson.expo.extra?.eas,
+        projectId: '87c7f12a-d69e-437a-b44c-3602478b2d92',
+      },
+    },
     android: {
       ...appJson.expo.android,
       config: {

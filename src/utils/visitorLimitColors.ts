@@ -12,7 +12,7 @@ export function getVisitorLimitMarkerColor(visitorTimeLimitMinutes: number | nul
 
 /** Compact legend rows for the complexes map mode. */
 export const VISITOR_LIMIT_LEGEND: { label: string; color: string }[] = [
-  { label: 'No single posted limit', color: getVisitorLimitMarkerColor(null) },
+  { label: 'No time limit (lowest risk)', color: getVisitorLimitMarkerColor(null) },
   { label: '2+ hours', color: getVisitorLimitMarkerColor(120) },
   { label: '~1 hour', color: getVisitorLimitMarkerColor(60) },
   { label: '31–59 min', color: getVisitorLimitMarkerColor(45) },

@@ -239,7 +239,10 @@ export default function TimerScreen() {
             <RiskBadge level={selectedComplex.riskLevel} />
           </View>
           <Text style={styles.selectedCardDetail}>
-            {formatVisitorLimitMinutes(selectedComplex.visitorTimeLimitMinutes)} limit ·{' '}
+            {selectedComplex.visitorTimeLimitMinutes && selectedComplex.visitorTimeLimitMinutes > 0
+              ? `${formatVisitorLimitMinutes(selectedComplex.visitorTimeLimitMinutes)} limit`
+              : 'No time limit'}
+            {' · '}
             {selectedComplex.bootingCompany ?? 'No boot company'}
           </Text>
           <Text style={styles.changeText}>Tap to change</Text>

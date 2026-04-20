@@ -21,6 +21,34 @@ interface AuthState {
 
 const AuthContext = createContext<AuthState | undefined>(undefined);
 
+const DISPLAY_NAME_ALLOWED_RE = /^[A-Za-z0-9 '._-]+$/;
+
+function randomUserHandle(): string {
+  return `User${Math.floor(10000 + Math.random() * 90000)}`;
+}
+
+function sanitizeMetaName(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null;
+  const cleaned = raw.trim().replace(/\s+/g, ' ');
+  if (cleaned.length < 2 || cleaned.length > 30) return null;
+  if (!DISPLAY_NAME_ALLOWED_RE.test(cleaned)) return null;
+  return cleaned;
+}
+
+async function setProfileName(userId: string, mode: 'insert' | 'update'): Promise<void> {
+  // Try up to 3 handles in case of a unique-index collision with another User#####.
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const candidate = randomUserHandle();
+    const { error } =
+      mode === 'insert'
+        ? await supabase.from('profiles').insert({ id: userId, display_name: candidate })
+        : await supabase.from('profiles').update({ display_name: candidate }).eq('id', userId);
+    if (!error) return;
+    // 23505 = unique_violation → retry with a different handle.
+    if ((error as { code?: string }).code !== '23505') return;
+  }
+}
+
 async function ensureProfile(user: User) {
   const { data } = await supabase
     .from('profiles')
@@ -28,16 +56,28 @@ async function ensureProfile(user: User) {
     .eq('id', user.id)
     .single();
 
+  // Prefer a validated name from the OAuth provider metadata; otherwise fall
+  // back to a neutral "User#####" handle. We never use the email prefix — it
+  // leaks personal info (see ProfileScreen display-name editor).
   const metaName =
-    user.user_metadata?.display_name ||
-    user.user_metadata?.full_name ||
-    user.user_metadata?.name;
-  const fallback = metaName || user.email?.split('@')[0] || 'User';
+    sanitizeMetaName(user.user_metadata?.display_name) ??
+    sanitizeMetaName(user.user_metadata?.full_name) ??
+    sanitizeMetaName(user.user_metadata?.name);
 
   if (!data) {
-    await supabase.from('profiles').insert({ id: user.id, display_name: fallback });
+    if (metaName) {
+      const { error } = await supabase.from('profiles').insert({ id: user.id, display_name: metaName });
+      if (error) await setProfileName(user.id, 'insert');
+    } else {
+      await setProfileName(user.id, 'insert');
+    }
   } else if (!data.display_name) {
-    await supabase.from('profiles').update({ display_name: fallback }).eq('id', user.id);
+    if (metaName) {
+      const { error } = await supabase.from('profiles').update({ display_name: metaName }).eq('id', user.id);
+      if (error) await setProfileName(user.id, 'update');
+    } else {
+      await setProfileName(user.id, 'update');
+    }
   }
 }
 
