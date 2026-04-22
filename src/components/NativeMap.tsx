@@ -1,6 +1,6 @@
 import { forwardRef } from 'react';
 import { StyleSheet, View } from 'react-native';
-import MapView, { Marker } from 'react-native-maps';
+import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { Complex } from '../types/complex';
 import { getVisitorLimitMarkerColor } from '../utils/visitorLimitColors';
 import { REXBURG_CENTER } from '../data/complexes';
@@ -21,8 +21,16 @@ function PinMarker({ color }: { color: string }) {
   );
 }
 
+// Force Google Maps on both iOS and Android so coordinates + tile imagery are
+// identical across platforms (Apple Maps on iOS drifts slightly from Google's).
 const NativeMap = forwardRef<MapView, Props>(({ complexes, onMarkerPress, colorOverrides }, ref) => (
-  <MapView ref={ref} style={styles.map} initialRegion={REXBURG_CENTER} showsUserLocation>
+  <MapView
+    ref={ref}
+    provider={PROVIDER_GOOGLE}
+    style={styles.map}
+    initialRegion={REXBURG_CENTER}
+    showsUserLocation
+  >
     {complexes.map((complex) => {
       const color =
         colorOverrides?.get(complex.id) ?? getVisitorLimitMarkerColor(complex.visitorTimeLimitMinutes);

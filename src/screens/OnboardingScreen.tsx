@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { Dimensions, FlatList, Pressable, StyleSheet, Text, View, ViewToken } from 'react-native';
+import { Dimensions, FlatList, Pressable, ScrollView, StyleSheet, Text, View, ViewToken } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
 import { fontSize, spacing, borderRadius, shadowCard, fonts, type AppColors } from '../theme';
@@ -93,7 +93,12 @@ export default function OnboardingScreen({ onComplete }: Props) {
 
   function renderSlide({ item }: { item: Slide }) {
     return (
-      <View style={styles.slide}>
+      <ScrollView
+        style={styles.slideScroll}
+        contentContainerStyle={styles.slide}
+        showsVerticalScrollIndicator={false}
+        bounces={false}
+      >
         <View style={[styles.iconCircle, { backgroundColor: item.iconColor + '22' }]}>
           <Ionicons name={item.icon} size={56} color={item.iconColor} />
         </View>
@@ -115,7 +120,7 @@ export default function OnboardingScreen({ onComplete }: Props) {
             ))}
           </View>
         )}
-      </View>
+      </ScrollView>
     );
   }
 
@@ -164,12 +169,16 @@ function createStyles(colors: AppColors) {
       flex: 1,
       backgroundColor: colors.background,
     },
-    slide: {
+    slideScroll: {
       width,
       flex: 1,
+    },
+    slide: {
+      flexGrow: 1,
       justifyContent: 'center',
       alignItems: 'center',
       paddingHorizontal: spacing.xl,
+      paddingVertical: spacing.xl,
     },
     iconCircle: {
       width: 100,

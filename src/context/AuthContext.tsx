@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import * as WebBrowser from 'expo-web-browser';
@@ -7,6 +8,10 @@ import * as AuthSession from 'expo-auth-session';
 import * as AppleAuthentication from 'expo-apple-authentication';
 
 WebBrowser.maybeCompleteAuthSession();
+
+// Expo Go doesn't carry your app's Apple Sign-In entitlement, so native
+// Apple auth can terminate the process. Gate it on dev/prod builds only.
+const isExpoGo = Constants.appOwnership === 'expo';
 
 interface AuthState {
   session: Session | null;
@@ -117,6 +122,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function signInWithGoogle() {
     try {
       const redirectUrl = AuthSession.makeRedirectUri();
+      console.log('[auth] google redirect URL:', redirectUrl);
 
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
@@ -132,10 +138,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (result.type !== 'success') return { error: null };
 
+      // Supabase may return tokens in the URL fragment (implicit flow) or as a
+      // `?code=` query param (PKCE). Handle both so neither path silently fails.
       const url = new URL(result.url);
-      const params = new URLSearchParams(url.hash.substring(1));
-      const accessToken = params.get('access_token');
-      const refreshToken = params.get('refresh_token');
+      const hashParams = new URLSearchParams(url.hash.replace(/^#/, ''));
+      const accessToken = hashParams.get('access_token') ?? url.searchParams.get('access_token');
+      const refreshToken = hashParams.get('refresh_token') ?? url.searchParams.get('refresh_token');
+      const code = url.searchParams.get('code');
+
+      if (code) {
+        const { error: exErr } = await supabase.auth.exchangeCodeForSession(code);
+        if (exErr) return { error: exErr.message };
+        return { error: null };
+      }
 
       if (accessToken) {
         const { error: sessionError } = await supabase.auth.setSession({
@@ -146,8 +161,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       return { error: null };
-    } catch {
-      return { error: 'Google sign-in failed' };
+    } catch (e) {
+      console.error('[auth] google sign-in failed:', e);
+      const message = e instanceof Error ? e.message : 'Google sign-in failed';
+      return { error: message };
     }
   }
 
@@ -156,7 +173,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { error: 'Apple sign-in is only available on iOS' };
     }
 
+    if (isExpoGo) {
+      return {
+        error:
+          'Apple sign-in requires a development build. Use email or Google sign-in while testing in Expo Go.',
+      };
+    }
+
     try {
+      const available = await AppleAuthentication.isAvailableAsync();
+      if (!available) {
+        return { error: 'Apple sign-in is not available on this device.' };
+      }
+
       const credential = await AppleAuthentication.signInAsync({
         requestedScopes: [
           AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
@@ -174,8 +203,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       return { error: error?.message ?? null };
-    } catch {
-      return { error: null };
+    } catch (e) {
+      const code = (e as { code?: string } | undefined)?.code;
+      // User tapped "Cancel" on the Apple sheet — not an error.
+      if (code === 'ERR_REQUEST_CANCELED') return { error: null };
+      console.error('[auth] apple sign-in failed:', e);
+      const message = e instanceof Error ? e.message : 'Apple sign-in failed';
+      return { error: message };
     }
   }
 

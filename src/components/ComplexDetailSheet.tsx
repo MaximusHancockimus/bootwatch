@@ -1,4 +1,4 @@
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Complex } from '../types/complex';
 import RiskBadge from './RiskBadge';
@@ -72,6 +72,11 @@ export default function ComplexDetailSheet({
           <View style={styles.accentStrip} />
           <View style={styles.handle} />
 
+          <ScrollView
+            style={styles.scrollArea}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+          >
           <View style={styles.header}>
             <Text style={styles.name} numberOfLines={2}>
               {complex.name}
@@ -168,6 +173,7 @@ export default function ComplexDetailSheet({
             <Ionicons name="timer-outline" size={20} color={colors.textInverse} />
             <Text style={styles.parkButtonText}>Park here</Text>
           </Pressable>
+          </ScrollView>
         </View>
       </View>
     </Modal>
@@ -214,12 +220,17 @@ function createStyles(colors: import('../theme').AppColors) {
       backgroundColor: colors.background,
       borderTopLeftRadius: borderRadius.xl,
       borderTopRightRadius: borderRadius.xl,
-      paddingHorizontal: spacing.lg,
-      paddingBottom: spacing.xl,
       paddingTop: spacing.xs,
       maxHeight: '88%',
       overflow: 'hidden',
       ...shadowFloat,
+    },
+    scrollArea: {
+      flexGrow: 0,
+    },
+    scrollContent: {
+      paddingHorizontal: spacing.lg,
+      paddingBottom: spacing.xl,
     },
     accentStrip: {
       position: 'absolute',
