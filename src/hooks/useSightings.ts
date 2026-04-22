@@ -62,8 +62,10 @@ export function useSightings() {
         const profileMap = await fetchProfiles(data.map((r) => r.user_id));
         setSightings(data.map((row) => enrichSighting(row, profileMap)));
       }
-    } catch {
-      setError('Failed to load sightings');
+    } catch (e) {
+      console.error('[useSightings] fetch failed:', e);
+      const message = e instanceof Error ? e.message : JSON.stringify(e);
+      setError(message || 'Failed to load sightings');
     }
     setLoading(false);
   }, []);
