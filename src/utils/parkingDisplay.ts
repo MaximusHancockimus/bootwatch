@@ -17,11 +17,17 @@ export function formatVisitorTimeRange12(start: string, end: string): string {
 }
 
 /**
- * Visitor limit for UI: under 60 min as minutes; otherwise hours / hours + minutes.
- * `null` / `0` means the complex has no posted time limit (lowest risk), NOT unknown.
+ * Visitor limit for compact UI (map cards, lists).
+ * - Signage unknown (`visitorLimitSignageKnown === false`): `? min`
+ * - Signage known, no numeric cap: `∞ min`
+ * - Otherwise: minutes / hours phrase
  */
-export function formatVisitorLimitMinutes(minutes: number | null | undefined): string {
-  if (minutes == null || minutes <= 0) return 'No time limit';
+export function formatVisitorLimitMinutes(
+  minutes: number | null | undefined,
+  signageKnown: boolean | undefined = true,
+): string {
+  if (signageKnown === false) return '? min';
+  if (minutes == null || minutes <= 0) return '∞ min';
   if (minutes < 60) return `${minutes} min`;
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;

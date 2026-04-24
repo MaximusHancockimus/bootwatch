@@ -13,6 +13,12 @@ export interface Complex {
   latitude: number;
   longitude: number;
   visitorTimeLimitMinutes: number | null;
+  /**
+   * When `false`, visitor duration is unknown (no signage / not on file) — show `? min`.
+   * When `true` or omitted, `visitorTimeLimitMinutes` is trusted: `null` or `0` means surveyed
+   * unlimited — show `∞ min`; positive values show the usual minute/hour phrase.
+   */
+  visitorLimitSignageKnown?: boolean;
   bootingCompany: string | null;
   riskLevel: RiskLevel;
   notes: string | null;

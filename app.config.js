@@ -8,6 +8,13 @@ const mapsKey = process.env.GOOGLE_MAPS_API_KEY;
 module.exports = {
   expo: {
     ...appJson.expo,
+    updates: {
+      ...appJson.expo.updates,
+      url: 'https://u.expo.dev/87c7f12a-d69e-437a-b44c-3602478b2d92',
+    },
+    runtimeVersion: {
+      policy: 'appVersion',
+    },
     extra: {
       ...appJson.expo.extra,
       eas: {
@@ -17,7 +24,10 @@ module.exports = {
     },
     ios: {
       ...appJson.expo.ios,
-      ...(mapsKey ? { config: { ...appJson.expo.ios?.config, googleMapsApiKey: mapsKey } } : {}),
+      infoPlist: {
+        ...appJson.expo.ios?.infoPlist,
+        ITSAppUsesNonExemptEncryption: false,
+      },
     },
     android: {
       ...appJson.expo.android,

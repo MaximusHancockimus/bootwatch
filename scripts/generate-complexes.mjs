@@ -29,7 +29,8 @@ const risks = ['moderate', 'low', 'high', 'moderate', 'high', 'low'];
 
 /**
  * Optional fields per object in rexburg-housing.json (all optional except name/lat/lng):
- *   visitorTimeLimitMinutes: number | null  — null = no posted limit / unclear
+ *   visitorTimeLimitMinutes: number | null  — null + signage known = unlimited (∞); use visitorLimitSignageKnown: false for unknown (?)
+ *   visitorLimitSignageKnown: boolean (optional) — false = no signage / duration unknown
  *   bootingCompany: string | null
  *   riskLevel: 'high' | 'moderate' | 'low' | 'unknown'
  *   notes: string — verbatim or summary from the sign; cite photo filename if useful
@@ -37,6 +38,7 @@ const risks = ['moderate', 'low', 'high', 'moderate', 'high', 'low'];
  *   weekday_hours / friday_hours: { start, end } — used to compose notes if notes omitted
  *   variants: string[] — e.g. Haven buildings; appended to composed notes
  *   peak_activity_hint: string — optional; shown when sighting stats are below threshold
+ *   id: string — optional stable slug (e.g. after renaming for disambiguation); must be unique
  */
 function pickVisitorLimit(row, i) {
   if (Object.prototype.hasOwnProperty.call(row, 'visitorTimeLimitMinutes')) {
@@ -88,6 +90,27 @@ function pickFridayHoursForRow(row) {
   return pickHourRange(row.friday_hours);
 }
 
+function signageKnownFromRow(row) {
+  if (Object.prototype.hasOwnProperty.call(row, 'visitorLimitSignageKnown')) {
+    return row.visitorLimitSignageKnown !== false;
+  }
+  if (Object.prototype.hasOwnProperty.call(row, 'visitor_limit_signage_known')) {
+    return row.visitor_limit_signage_known !== false;
+  }
+  return undefined;
+}
+
+function nullLimitNote(row) {
+  const sk = signageKnownFromRow(row);
+  if (sk === true) {
+    return 'Surveyed signage: no maximum visitor parking duration is posted.';
+  }
+  if (sk === false) {
+    return 'Visitor parking duration unknown — no verified signage on file for a time limit.';
+  }
+  return 'Visitor duration not posted as a single time limit; check posted hours on site.';
+}
+
 /** Notes only (hours display in app from visitorWeekdayHours / visitorFridayHours). */
 function composeAutoNotes(row) {
   const hasMeta =
@@ -99,14 +122,14 @@ function composeAutoNotes(row) {
   const parts = [];
   if (Object.prototype.hasOwnProperty.call(row, 'visitor_limit_minutes')) {
     if (row.visitor_limit_minutes == null) {
-      parts.push('Visitor duration not posted as a single time limit; check posted hours on site.');
+      parts.push(nullLimitNote(row));
     } else {
       const phrase = formatLimitPhraseMinutes(row.visitor_limit_minutes);
       parts.push(`Visitor parking ${phrase} when applicable.`);
     }
   } else if (Object.prototype.hasOwnProperty.call(row, 'visitorTimeLimitMinutes')) {
     if (row.visitorTimeLimitMinutes == null) {
-      parts.push('Visitor duration not posted as a single time limit; check posted hours on site.');
+      parts.push(nullLimitNote(row));
     } else {
       const phrase = formatLimitPhraseMinutes(row.visitorTimeLimitMinutes);
       parts.push(`Visitor parking ${phrase} when applicable.`);
@@ -118,6 +141,24 @@ function composeAutoNotes(row) {
   }
 
   return parts.join(' ');
+}
+
+/** false → app shows ? min; true/omit with null minutes → ∞ min */
+function pickVisitorLimitSignageKnown(row, lim, notes) {
+  if (Object.prototype.hasOwnProperty.call(row, 'visitorLimitSignageKnown')) {
+    return row.visitorLimitSignageKnown !== false;
+  }
+  if (Object.prototype.hasOwnProperty.call(row, 'visitor_limit_signage_known')) {
+    return row.visitor_limit_signage_known !== false;
+  }
+  if (
+    lim == null &&
+    typeof notes === 'string' &&
+    notes.includes('not posted as a single time limit')
+  ) {
+    return false;
+  }
+  return true;
 }
 
 function pickNotes(row) {
@@ -139,22 +180,47 @@ function sqlQuote(s) {
 }
 
 const used = new Map();
+const usedIds = new Set();
 const rows = [];
 for (let i = 0; i < data.length; i++) {
   const row = data[i];
   const base = slug(row.name);
-  const n = used.get(base) || 0;
-  used.set(base, n + 1);
-  const id = n > 0 ? `${base}-${n + 1}` : base;
+  const explicitId =
+    typeof row.id === 'string' && row.id.trim() !== ''
+      ? row.id.trim()
+      : typeof row.complex_id === 'string' && row.complex_id.trim() !== ''
+        ? row.complex_id.trim()
+        : null;
+
+  let id;
+  if (explicitId) {
+    id = explicitId;
+    if (usedIds.has(id)) {
+      throw new Error(`generate-complexes: duplicate id "${id}" in rexburg-housing.json`);
+    }
+    usedIds.add(id);
+  } else {
+    const n = used.get(base) || 0;
+    used.set(base, n + 1);
+    id = n > 0 ? `${base}-${n + 1}` : base;
+    if (usedIds.has(id)) {
+      throw new Error(`generate-complexes: duplicate generated id "${id}"`);
+    }
+    usedIds.add(id);
+  }
+  const lim = pickVisitorLimit(row, i);
+  const notes = pickNotes(row);
+  const signageKnown = pickVisitorLimitSignageKnown(row, lim, notes);
   rows.push({
     id,
     name: row.name.trim(),
     lat: row.lat,
     lng: row.lng,
-    lim: pickVisitorLimit(row, i),
+    lim,
     risk: pickString(row, 'riskLevel', risks[i % risks.length]),
     boot: pickBootingCompany(row),
-    notes: pickNotes(row),
+    notes,
+    signageKnown,
     wh: pickWeekdayHoursForRow(row),
     fh: pickFridayHoursForRow(row),
     peakHint:
@@ -176,6 +242,13 @@ parts.push(`import { Complex } from '../types/complex';`);
 parts.push('');
 parts.push(`/** Placeholder copy — replace with verified rules when you have real data */`);
 parts.push(`const PLACEHOLDER_NOTE = ${JSON.stringify(PLACEHOLDER_NOTE)};`);
+parts.push('');
+parts.push('/**');
+parts.push(
+  ' * Map pin positions: edit `src/data/rexburg-housing.json` only, then run `node scripts/generate-complexes.mjs`.',
+);
+parts.push(' * Hand-editing latitude/longitude in this file is overwritten on the next generate.');
+parts.push(' */');
 parts.push('');
 parts.push(`export const REXBURG_CENTER = {`);
 parts.push(`  latitude: ${midLat.toFixed(4)},`);
@@ -200,6 +273,7 @@ for (const r of rows) {
   parts.push(`    latitude: ${r.lat},`);
   parts.push(`    longitude: ${r.lng},`);
   parts.push(`    visitorTimeLimitMinutes: ${r.lim === null ? 'null' : r.lim},`);
+  parts.push(`    visitorLimitSignageKnown: ${r.signageKnown},`);
   parts.push(`    bootingCompany: ${r.boot === null ? 'null' : JSON.stringify(r.boot)},`);
   parts.push(`    riskLevel: '${r.risk}',`);
   if (r.wh) {

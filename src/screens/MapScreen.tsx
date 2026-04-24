@@ -1,6 +1,8 @@
 import { useCallback, useMemo, useState } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+
+const BOOTWATCH_MARK = require('../../assets/android-icon-foreground.png');
 import { useNavigation } from '@react-navigation/native';
 import { complexes } from '../data/complexes';
 import { Complex } from '../types/complex';
@@ -168,6 +170,17 @@ export default function MapScreen() {
               )))}
       </View>
 
+      {/* Brand watermark — sits above the panel, fades when the apartment list opens */}
+      {!panelExpanded && (
+        <View style={styles.brandWatermark} pointerEvents="none">
+          <Image source={BOOTWATCH_MARK} style={styles.brandWatermarkLogo} resizeMode="contain" />
+          <View style={styles.brandWatermarkTextRow}>
+            <Text style={styles.brandWatermarkText}>BootWatch</Text>
+            <Text style={styles.brandWatermarkTm}>™</Text>
+          </View>
+        </View>
+      )}
+
       {/* Collapsible bottom panel */}
       <View style={[styles.panel, panelExpanded && styles.panelExpanded]}>
         <Pressable style={styles.panelHandle} onPress={() => setPanelExpanded(!panelExpanded)}>
@@ -189,7 +202,10 @@ export default function MapScreen() {
             {filtered.map((c) => {
               const heat = getEntry(c.id);
               const level = getHeatLevel(heat.count);
-              const limitPin = getVisitorLimitMarkerColor(c.visitorTimeLimitMinutes);
+              const limitPin = getVisitorLimitMarkerColor(
+                c.visitorTimeLimitMinutes,
+                c.visitorLimitSignageKnown,
+              );
               return (
                 <Pressable key={c.id} style={styles.card} onPress={() => handleMarkerPress(c)}>
                   <View style={styles.cardHeader}>
@@ -209,7 +225,7 @@ export default function MapScreen() {
                         ]}
                       >
                         <Text style={[styles.limitBadgeText, { color: limitPin }]}>
-                          {formatVisitorLimitMinutes(c.visitorTimeLimitMinutes)}
+                          {formatVisitorLimitMinutes(c.visitorTimeLimitMinutes, c.visitorLimitSignageKnown)}
                         </Text>
                       </View>
                     )}
@@ -218,7 +234,7 @@ export default function MapScreen() {
                     <View style={styles.cardMetaItem}>
                       <Ionicons name="time-outline" size={14} color={colors.textSecondary} />
                       <Text style={styles.cardMetaText}>
-                        {formatVisitorLimitMinutes(c.visitorTimeLimitMinutes)}
+                        {formatVisitorLimitMinutes(c.visitorTimeLimitMinutes, c.visitorLimitSignageKnown)}
                       </Text>
                     </View>
                     {c.bootingCompany && (
@@ -274,6 +290,49 @@ function createStyles(colors: any) {
     right: 0,
     zIndex: 10,
     padding: spacing.md,
+  },
+  brandWatermark: {
+    position: 'absolute',
+    bottom: 60,
+    left: spacing.md,
+    zIndex: 5,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: 6,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.full,
+    borderWidth: 1,
+    borderColor: colors.border,
+    ...shadowCard,
+  },
+  brandWatermarkLogo: {
+    width: 42,
+    height: 42,
+  },
+  brandWatermarkTextRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  brandWatermarkText: {
+    fontSize: fontSize.xl,
+    fontFamily: fonts.displayBold,
+    color: colors.text,
+    letterSpacing: 0.3,
+    textShadowColor: 'rgba(255,255,255,0.9)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 6,
+  },
+  brandWatermarkTm: {
+    fontSize: 11,
+    fontFamily: fonts.bodyMedium,
+    color: colors.textSecondary,
+    marginTop: 4,
+    marginLeft: 2,
+    textShadowColor: 'rgba(255,255,255,0.9)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 4,
   },
   searchContainer: {
     flexDirection: 'row',

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Animated,
   FlatList,
   Image,
@@ -11,14 +12,9 @@ import {
   Text,
   View,
 } from 'react-native';
-// `expo-image` gives us an `autoplay` prop that `react-native` Image lacks.
-// We use it only for the feed avatar so animated GIFs render as a still
-// first frame — keeps the list calm and avoids parallel animations across
-// dozens of cards.
-import { Image as ExpoImage } from 'expo-image';
-import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { useSightings } from '../hooks/useSightings';
+import { useAuth } from '../context/AuthContext';
 import { Sighting } from '../types/sighting';
 import { timeAgo, isWithinHours } from '../utils/time';
 import ReportSightingModal from '../components/ReportSightingModal';
@@ -60,8 +56,8 @@ function PulseBadge({
 export default function FeedScreen() {
   const { colors } = useTheme();
   const styles = createStyles(colors);
-  const tabBarHeight = useBottomTabBarHeight();
-  const { sightings, loading, error, refresh } = useSightings();
+  const { sightings, loading, error, refresh, deleteSighting } = useSightings();
+  const { user } = useAuth();
   const [reportVisible, setReportVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -71,9 +67,42 @@ export default function FeedScreen() {
     setRefreshing(false);
   }, [refresh]);
 
+  const handleDelete = useCallback((id: string) => {
+    const confirmAndDelete = async () => {
+      const { error: delError } = await deleteSighting(id);
+      if (delError) {
+        if (Platform.OS === 'web') alert(`Could not delete report.\n\n${delError}`);
+        else Alert.alert('Could not delete', delError);
+      }
+    };
+
+    if (Platform.OS === 'web') {
+      // eslint-disable-next-line no-alert
+      if (confirm('Delete this report? This cannot be undone.')) void confirmAndDelete();
+      return;
+    }
+
+    Alert.alert(
+      'Delete report?',
+      'This will remove your sighting from the feed. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: () => void confirmAndDelete() },
+      ],
+    );
+  }, [deleteSighting]);
+
   const renderSighting = useCallback(
-    ({ item }: { item: Sighting }) => <SightingCard item={item} styles={styles} colors={colors} />,
-    [styles, colors],
+    ({ item }: { item: Sighting }) => (
+      <SightingCard
+        item={item}
+        styles={styles}
+        colors={colors}
+        isOwn={!!user && item.user_id === user.id}
+        onDelete={handleDelete}
+      />
+    ),
+    [styles, colors, user, handleDelete],
   );
 
   if (loading && sightings.length === 0) {
@@ -148,7 +177,7 @@ export default function FeedScreen() {
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Report a sighting"
-        style={[styles.fab, { bottom: tabBarHeight + spacing.md }]}
+        style={[styles.fab, { bottom: spacing.md }]}
         onPress={() => setReportVisible(true)}
       >
         <Ionicons name="add" size={28} color={colors.textInverse} />
@@ -164,10 +193,14 @@ const SightingCard = React.memo(function SightingCard({
   item,
   styles,
   colors,
+  isOwn,
+  onDelete,
 }: {
   item: Sighting;
   styles: ReturnType<typeof createStyles>;
   colors: import('../theme').AppColors;
+  isOwn: boolean;
+  onDelete: (id: string) => void;
 }) {
   const isActive = isWithinHours(item.created_at, 0.5);
   const isRecent = !isActive && isWithinHours(item.created_at, 2);
@@ -205,12 +238,10 @@ const SightingCard = React.memo(function SightingCard({
           {avatarIcon ? (
             <Ionicons name={avatarIcon} size={16} color={colors.textInverse} />
           ) : showAvatarPhoto ? (
-            <ExpoImage
+            <Image
               source={{ uri: item.avatar_url! }}
               style={styles.avatarImage}
-              contentFit="cover"
-              autoplay={false}
-              transition={0}
+              resizeMode="cover"
             />
           ) : (
             <Text style={styles.avatarText}>{initial}</Text>
@@ -233,6 +264,17 @@ const SightingCard = React.memo(function SightingCard({
           <View style={styles.recentBadge}>
             <Text style={styles.recentBadgeText}>RECENT</Text>
           </View>
+        )}
+        {isOwn && (
+          <Pressable
+            onPress={() => onDelete(item.id)}
+            hitSlop={10}
+            style={({ pressed }) => [styles.deleteButton, pressed && styles.deleteButtonPressed]}
+            accessibilityRole="button"
+            accessibilityLabel="Delete this report"
+          >
+            <Ionicons name="trash-outline" size={16} color={colors.textSecondary} />
+          </Pressable>
         )}
       </View>
       {item.photo_url && <Image source={{ uri: item.photo_url }} style={styles.photo} />}
@@ -397,6 +439,20 @@ function createStyles(colors: import('../theme').AppColors) {
       fontFamily: fonts.displayBold,
       color: colors.textInverse,
       letterSpacing: 0.8,
+    },
+    deleteButton: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      backgroundColor: colors.surface,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginLeft: spacing.xs,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    deleteButtonPressed: {
+      opacity: 0.6,
     },
     photo: {
       width: '100%',

@@ -120,7 +120,8 @@ export default function WebMap({ complexes, onMarkerPress, colorOverrides }: Pro
 
     complexes.forEach((complex) => {
       const color =
-        colorOverrides?.get(complex.id) ?? getVisitorLimitMarkerColor(complex.visitorTimeLimitMinutes);
+        colorOverrides?.get(complex.id) ??
+          getVisitorLimitMarkerColor(complex.visitorTimeLimitMinutes, complex.visitorLimitSignageKnown);
       const marker = new google.maps.Marker({
         position: { lat: complex.latitude, lng: complex.longitude },
         map,

@@ -1,5 +1,5 @@
 import { useState, type CSSProperties } from 'react';
-import { ActivityIndicator, Alert, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActionSheetIOS, ActivityIndicator, Alert, Image, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
@@ -25,6 +25,28 @@ const TIME_OPTIONS = [
   { label: '1 hour ago', minutes: 60 },
 ];
 
+// Pure-JS base64 → Uint8Array. Avoids relying on Hermes' `atob`, which has
+// inconsistent behavior across React Native release builds.
+const BASE64_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+function decodeBase64(input: string): Uint8Array {
+  const clean = input.replace(/[^A-Za-z0-9+/=]/g, '');
+  const padding = clean.endsWith('==') ? 2 : clean.endsWith('=') ? 1 : 0;
+  const byteLen = (clean.length / 4) * 3 - padding;
+  const out = new Uint8Array(byteLen);
+  let outIdx = 0;
+  for (let i = 0; i < clean.length; i += 4) {
+    const c1 = BASE64_CHARS.indexOf(clean[i]);
+    const c2 = BASE64_CHARS.indexOf(clean[i + 1]);
+    const c3 = BASE64_CHARS.indexOf(clean[i + 2]);
+    const c4 = BASE64_CHARS.indexOf(clean[i + 3]);
+    const triplet = (c1 << 18) | (c2 << 12) | ((c3 & 0x3f) << 6) | (c4 & 0x3f);
+    if (outIdx < byteLen) out[outIdx++] = (triplet >> 16) & 0xff;
+    if (outIdx < byteLen) out[outIdx++] = (triplet >> 8) & 0xff;
+    if (outIdx < byteLen) out[outIdx++] = triplet & 0xff;
+  }
+  return out;
+}
+
 export default function ReportSightingModal({ visible, onClose, onSuccess }: Props) {
   const { user } = useAuth();
   const { colors } = useTheme();
@@ -35,39 +57,142 @@ export default function ReportSightingModal({ visible, onClose, onSuccess }: Pro
   const [complexSearch, setComplexSearch] = useState('');
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
+  const [photoBase64, setPhotoBase64] = useState<string | null>(null);
+  const [photoMime, setPhotoMime] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [photoWarning, setPhotoWarning] = useState(false);
+  const [photoWarning, setPhotoWarning] = useState<string | null>(null);
 
-  async function pickPhoto() {
+  function clearPhoto() {
+    setPhotoUri(null);
+    setPhotoBase64(null);
+    setPhotoMime(null);
+  }
+
+  async function promptPhotoSource() {
+    if (Platform.OS === 'web') {
+      // Web only supports library/file picker.
+      void pickFromLibrary();
+      return;
+    }
+
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options: ['Cancel', 'Take Photo', 'Choose from Library'],
+          cancelButtonIndex: 0,
+        },
+        (index) => {
+          if (index === 1) void pickFromCamera();
+          if (index === 2) void pickFromLibrary();
+        },
+      );
+      return;
+    }
+
+    Alert.alert('Add photo', 'How would you like to add a photo?', [
+      { text: 'Take Photo', onPress: () => void pickFromCamera() },
+      { text: 'Choose from Library', onPress: () => void pickFromLibrary() },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  }
+
+  async function ensureCameraPermission(): Promise<boolean> {
+    const current = await ImagePicker.getCameraPermissionsAsync();
+    if (current.granted) return true;
+    if (!current.canAskAgain) {
+      Alert.alert(
+        'Camera access needed',
+        'Enable camera access for BootWatch in Settings to take a photo.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Open Settings', onPress: () => void Linking.openSettings() },
+        ],
+      );
+      return false;
+    }
+    const { granted } = await ImagePicker.requestCameraPermissionsAsync();
+    return granted;
+  }
+
+  function applyAsset(asset: ImagePicker.ImagePickerAsset) {
+    setPhotoUri(asset.uri);
+    setPhotoBase64(asset.base64 ?? null);
+    setPhotoMime(asset.mimeType ?? null);
+  }
+
+  async function pickFromCamera() {
+    const ok = await ensureCameraPermission();
+    if (!ok) return;
+    const result = await ImagePicker.launchCameraAsync({
+      quality: 0.6,
+      allowsEditing: true,
+      aspect: [4, 3],
+      base64: true,
+    });
+    if (!result.canceled && result.assets[0]) {
+      applyAsset(result.assets[0]);
+    }
+  }
+
+  async function pickFromLibrary() {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       quality: 0.6,
       allowsEditing: true,
       aspect: [4, 3],
+      base64: true,
     });
     if (!result.canceled && result.assets[0]) {
-      setPhotoUri(result.assets[0].uri);
+      applyAsset(result.assets[0]);
     }
   }
 
-  async function uploadPhoto(uri: string): Promise<string | null> {
+  async function uploadPhoto(): Promise<{ url: string | null; reason?: string }> {
     try {
-      const ext = uri.split('.').pop() ?? 'jpg';
+      const base64 = photoBase64;
+      const uri = photoUri;
+      if (!base64 && !uri) return { url: null, reason: 'no source' };
+
+      const extFromUri = (uri?.split('.').pop() ?? '').toLowerCase().split('?')[0];
+      const mime = photoMime
+        ?? (extFromUri === 'png' ? 'image/png' : extFromUri === 'heic' ? 'image/heic' : 'image/jpeg');
+      const ext = mime === 'image/png' ? 'png' : mime === 'image/heic' ? 'heic' : 'jpg';
       const fileName = `${user!.id}/${Date.now()}.${ext}`;
 
-      const response = await fetch(uri);
-      const blob = await response.blob();
+      // expo-image-picker returns base64 directly when requested. This avoids
+      // the broken `fetch(file://...).arrayBuffer()` path on iOS native, which
+      // silently yields zero bytes for ph:// and some file:// URIs in release
+      // builds. We decode the base64 with a pure-JS routine because Hermes's
+      // global `atob` has historically been unreliable in release builds.
+      let bytes: Uint8Array | null = null;
+      if (base64) {
+        bytes = decodeBase64(base64);
+      } else if (uri) {
+        const response = await fetch(uri);
+        const ab = await response.arrayBuffer();
+        bytes = new Uint8Array(ab);
+      }
+
+      if (!bytes || bytes.byteLength === 0) {
+        return { url: null, reason: 'empty bytes' };
+      }
 
       const { error } = await supabase.storage
         .from('sighting-photos')
-        .upload(fileName, blob, { contentType: `image/${ext}` });
+        .upload(fileName, bytes, { contentType: mime, upsert: false });
 
-      if (error) return null;
+      if (error) {
+        const reason = (error as any).message || (error as any).error || 'storage error';
+        console.warn('[ReportSighting] upload error', error);
+        return { url: null, reason };
+      }
 
       const { data } = supabase.storage.from('sighting-photos').getPublicUrl(fileName);
-      return data.publicUrl;
-    } catch {
-      return null;
+      return { url: data.publicUrl };
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err);
+      console.warn('[ReportSighting] upload threw', err);
+      return { url: null, reason };
     }
   }
 
@@ -83,8 +208,11 @@ export default function ReportSightingModal({ visible, onClose, onSuccess }: Pro
     const complex = complexes.find((c) => c.id === selectedComplexId)!;
     let photoUrl: string | null = null;
 
-    if (photoUri) {
-      photoUrl = await uploadPhoto(photoUri);
+    let uploadReason: string | undefined;
+    if (photoUri || photoBase64) {
+      const result = await uploadPhoto();
+      photoUrl = result.url;
+      uploadReason = result.reason;
     }
 
     const sightingTime = new Date(Date.now() - timeOffset * 60 * 1000).toISOString();
@@ -117,19 +245,28 @@ export default function ReportSightingModal({ visible, onClose, onSuccess }: Pro
       if (Platform.OS !== 'web') {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
-      const hadPhotoFailure = !!photoUri && !photoUrl;
+      const hadPhotoFailure = (!!photoUri || !!photoBase64) && !photoUrl;
+      const failureReason = uploadReason;
       setReportType('spotter');
       setSelectedComplexId(null);
       setTimeOffset(0);
       setIsAnonymous(false);
       setComplexSearch('');
-      setPhotoUri(null);
+      clearPhoto();
       onSuccess();
-      if (hadPhotoFailure) {
-        setPhotoWarning(true);
-        setTimeout(() => setPhotoWarning(false), 5000);
-      }
       onClose();
+      if (hadPhotoFailure) {
+        // Use a blocking alert so the real reason is impossible to miss while we
+        // are still debugging the upload pipeline.
+        const body = failureReason
+          ? `Reason: ${failureReason}`
+          : 'No reason returned.';
+        if (Platform.OS === 'web') {
+          alert(`Report saved, but photo upload failed.\n\n${body}`);
+        } else {
+          Alert.alert('Photo upload failed', `Report saved.\n\n${body}`);
+        }
+      }
     }
   }
 
@@ -139,7 +276,7 @@ export default function ReportSightingModal({ visible, onClose, onSuccess }: Pro
     setTimeOffset(0);
     setIsAnonymous(false);
     setComplexSearch('');
-    setPhotoUri(null);
+    clearPhoto();
     onClose();
   }
 
@@ -152,8 +289,8 @@ export default function ReportSightingModal({ visible, onClose, onSuccess }: Pro
     {photoWarning && (
       <View style={styles.photoWarning}>
         <Ionicons name="warning-outline" size={18} color={colors.warning} />
-        <Text style={styles.photoWarningText}>Report saved, but photo upload failed</Text>
-        <Pressable onPress={() => setPhotoWarning(false)} hitSlop={8}>
+        <Text style={styles.photoWarningText}>{photoWarning}</Text>
+        <Pressable onPress={() => setPhotoWarning(null)} hitSlop={8}>
           <Ionicons name="close" size={18} color={colors.textSecondary} />
         </Pressable>
       </View>
@@ -227,7 +364,17 @@ export default function ReportSightingModal({ visible, onClose, onSuccess }: Pro
                   style={[styles.item, selectedComplexId === c.id && styles.itemSelected]}
                   onPress={() => setSelectedComplexId(c.id)}
                 >
-                  <View style={[styles.dot, { backgroundColor: getVisitorLimitMarkerColor(c.visitorTimeLimitMinutes) }]} />
+                  <View
+                    style={[
+                      styles.dot,
+                      {
+                        backgroundColor: getVisitorLimitMarkerColor(
+                          c.visitorTimeLimitMinutes,
+                          c.visitorLimitSignageKnown,
+                        ),
+                      },
+                    ]}
+                  />
                   <Text style={styles.itemText}>{c.name}</Text>
                   {selectedComplexId === c.id && (
                     <Ionicons name="checkmark-circle" size={20} color={colors.primary} />
@@ -264,9 +411,22 @@ export default function ReportSightingModal({ visible, onClose, onSuccess }: Pro
               </View>
             </Pressable>
 
-            <Pressable style={styles.photoButton} onPress={pickPhoto}>
+            <Pressable style={styles.photoButton} onPress={() => void promptPhotoSource()}>
               {photoUri ? (
-                <Image source={{ uri: photoUri }} style={styles.photoPreview} />
+                <View>
+                  <Image source={{ uri: photoUri }} style={styles.photoPreview} />
+                  <Pressable
+                    style={styles.photoRemove}
+                    onPress={(e) => {
+                      e.stopPropagation?.();
+                      clearPhoto();
+                    }}
+                    hitSlop={8}
+                    accessibilityLabel="Remove photo"
+                  >
+                    <Ionicons name="close" size={16} color="#fff" />
+                  </Pressable>
+                </View>
               ) : (
                 <View style={styles.photoPlaceholder}>
                   <Ionicons name="camera-outline" size={24} color={colors.textSecondary} />
@@ -536,6 +696,17 @@ function createStyles(colors: import('../theme').AppColors) {
     width: '100%',
     height: 120,
     borderRadius: borderRadius.md,
+  },
+  photoRemove: {
+    position: 'absolute',
+    top: spacing.xs,
+    right: spacing.xs,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   photoPlaceholder: {
     width: '100%',

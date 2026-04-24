@@ -15,7 +15,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.bootwatch.app",
-      "buildNumber": "1",
+      "buildNumber": "4",
       "usesAppleSignIn": true
     },
     "android": {
@@ -45,7 +45,8 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "BootWatch can attach an optional photo to a spotter report."
+          "photosPermission": "BootWatch can attach an optional photo to a spotter report.",
+          "cameraPermission": "BootWatch uses the camera so you can snap a photo of a boot truck for your sighting report."
         }
       ],
       "expo-image"

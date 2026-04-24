@@ -123,7 +123,7 @@ export default function ComplexDetailSheet({
             <InfoRow
               icon="time-outline"
               label="Visitor limit"
-              value={formatVisitorLimitMinutes(complex.visitorTimeLimitMinutes)}
+              value={formatVisitorLimitMinutes(complex.visitorTimeLimitMinutes, complex.visitorLimitSignageKnown)}
               styles={styles}
               colors={colors}
             />

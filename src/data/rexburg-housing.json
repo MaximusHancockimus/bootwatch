@@ -22,8 +22,8 @@
   },
   {
     "name": "Cottonwood Apartments",
-    "lat": 43.824998119853625,
-    "lng": -111.78737829018223
+    "lat": 43.82475237573918,
+    "lng": -111.78825732559137
   },
   {
     "name": "The Cedars",
@@ -43,8 +43,8 @@
   },
   {
     "name": "The Ridge",
-    "lat": 43.8134646351037,
-    "lng": -111.77495932882464,
+    "lat": 43.81264463600116,
+    "lng": -111.77584163149193,
     "visitor_limit_minutes": 120,
     "enforcement": "Guardian",
     "weekday_hours": {
@@ -59,8 +59,8 @@
   },
   {
     "name": "Shelbourne Apartments",
-    "lat": 43.8142532200196,
-    "lng": -111.78839662815291,
+    "lat": 43.81397791536827,
+    "lng": -111.79016129353718,
     "visitor_limit_minutes": 60,
     "enforcement": "Guardian",
     "weekday_hours": {
@@ -75,8 +75,8 @@
   },
   {
     "name": "Bunkhouse Apartments",
-    "lat": 43.81857557366205,
-    "lng": -111.78714117460454,
+    "lat": 43.81853468679799,
+    "lng": -111.78762403653774,
     "visitor_limit_minutes": 30,
     "enforcement": "RC Booting",
     "weekday_hours": {
@@ -91,8 +91,8 @@
   },
   {
     "name": "Royal Crest",
-    "lat": 43.81915737857114,
-    "lng": -111.78680504804737,
+    "lat": 43.81911976892209,
+    "lng": -111.78759723028986,
     "visitor_limit_minutes": 30,
     "enforcement": "RC Booting",
     "weekday_hours": {
@@ -139,8 +139,8 @@
   },
   {
     "name": "Avonlea Women's Apartments",
-    "lat": 43.82013020038388,
-    "lng": -111.78869707956228,
+    "lat": 43.81936834579613,
+    "lng": -111.78921107329646,
     "visitor_limit_minutes": 60,
     "enforcement": "Guardian",
     "weekday_hours": {
@@ -155,8 +155,8 @@
   },
   {
     "name": "Avonlea Mens's Apartments",
-    "lat": 43.82014946812144,
-    "lng": -111.78864877878573,
+    "lat": 43.820099105914764,
+    "lng": -111.78898376483258,
     "visitor_limit_minutes": 30,
     "enforcement": "Guardian",
     "weekday_hours": {
@@ -212,6 +212,7 @@
     "lat": 43.81272755906563,
     "lng": -111.79447508895876,
     "visitor_limit_minutes": null,
+    "visitor_limit_signage_known": true,
     "enforcement": "RC Booting",
     "weekday_hours": {
       "start": "10:00",
@@ -225,8 +226,8 @@
   },
   {
     "name": "The Cove",
-    "lat": 43.82123080784366,
-    "lng": -111.78994694598056,
+    "lat": 43.821360842871826,
+    "lng": -111.7904787859172,
     "visitor_limit_minutes": 120,
     "enforcement": "Guardian",
     "weekday_hours": {
@@ -240,9 +241,10 @@
     "riskLevel": "moderate"
   },
   {
-    "name": "University View",
-    "lat": 43.81277696026857,
-    "lng": -111.786803863979,
+    "id": "university-view",
+    "name": "The Grand",
+    "lat": 43.81256630171914,
+    "lng": -111.78892611878244,
     "visitor_limit_minutes": 120,
     "enforcement": "Unknown",
     "weekday_hours": {
@@ -258,8 +260,8 @@
   },
   {
     "name": "Alpine Chalet Apartments",
-    "lat": 43.81607133625046,
-    "lng": -111.78937823592788,
+    "lat": 43.816018183527724,
+    "lng": -111.7901371431068,
     "visitor_limit_minutes": 60,
     "enforcement": "Guardian",
     "weekday_hours": {
@@ -277,6 +279,7 @@
     "lat": 43.814688438261946,
     "lng": -111.79123197869117,
     "visitor_limit_minutes": null,
+    "visitor_limit_signage_known": true,
     "enforcement": "Guardian",
     "weekday_hours": {
       "start": "10:00",
@@ -290,9 +293,10 @@
   },
   {
     "name": "Pinnacle Point Apartments",
-    "lat": 43.824785222723875,
-    "lng": -111.7798895340759,
+    "lat": 43.824643677437116,
+    "lng": -111.78042783101822,
     "visitor_limit_minutes": null,
+    "visitor_limit_signage_known": true,
     "enforcement": "RC Booting",
     "weekday_hours": {
       "start": "10:00",
@@ -306,9 +310,10 @@
   },
   {
     "name": "The Landing",
-    "lat": 43.81762597616434,
-    "lng": -111.79277670630674,
+    "lat": 43.81737876228836,
+    "lng": -111.79472675539867,
     "visitor_limit_minutes": null,
+    "visitor_limit_signage_known": true,
     "enforcement": "RC Booting",
     "weekday_hours": {
       "start": "10:00",
@@ -322,8 +327,8 @@
   },
   {
     "name": "American Avenue Apartments",
-    "lat": 43.82300832812692,
-    "lng": -111.77876214016312,
+    "lat": 43.82270442857138,
+    "lng": -111.78032092689796,
     "visitor_limit_minutes": 60,
     "enforcement": "Guardian",
     "weekday_hours": {
@@ -338,8 +343,8 @@
   },
   {
     "name": "Colonial House",
-    "lat": 43.81704906080292,
-    "lng": -111.78866494012922,
+    "lat": 43.817014616638154,
+    "lng": -111.7886995849074,
     "visitor_limit_minutes": 120,
     "enforcement": "RC Booting",
     "weekday_hours": {
@@ -354,8 +359,8 @@
   },
   {
     "name": "The Towers II",
-    "lat": 43.81594554530131,
-    "lng": -111.79094771403169,
+    "lat": 43.81518182827914,
+    "lng": -111.79352165168105,
     "visitor_limit_minutes": 60,
     "enforcement": "Guardian",
     "weekday_hours": {
@@ -370,8 +375,8 @@
   },
   {
     "name": "The Towers",
-    "lat": 43.81332772581451,
-    "lng": -111.791822282492,
+    "lat": 43.813118260432525,
+    "lng": -111.79280777589564,
     "visitor_limit_minutes": 60,
     "enforcement": "Guardian",
     "weekday_hours": {
@@ -386,8 +391,8 @@
   },
   {
     "name": "Autumn Winds Apartments",
-    "lat": 43.81594741172438,
-    "lng": -111.78815132058418,
+    "lat": 43.81597626914306,
+    "lng": -111.78847851741259,
     "visitor_limit_minutes": 60,
     "enforcement": "Guardian",
     "weekday_hours": {
@@ -418,8 +423,8 @@
   },
   {
     "name": "Brookside Village",
-    "lat": 43.816254894314184,
-    "lng": -111.79169732428687,
+    "lat": 43.816101058247305,
+    "lng": -111.79158624876274,
     "visitor_limit_minutes": 60,
     "enforcement": "Guardian",
     "weekday_hours": {
@@ -434,8 +439,8 @@
   },
   {
     "name": "Georgetown Apartments",
-    "lat": 43.8206201505447,
-    "lng": -111.78891747561939,
+    "lat": 43.82025931654592,
+    "lng": -111.79063682303301,
     "visitor_limit_minutes": 60,
     "enforcement": "Guardian",
     "weekday_hours": {
@@ -450,13 +455,13 @@
   },
   {
     "name": "Rockland Apartments",
-    "lat": 43.81739450928537,
-    "lng": -111.79032254571743
+    "lat": 43.81711520426531,
+    "lng": -111.79079700024636
   },
   {
     "name": "Somerset Apartments",
-    "lat": 43.81606713103735,
-    "lng": -111.78748314468709,
+    "lat": 43.816083537083564,
+    "lng": -111.78748097758343,
     "visitor_limit_minutes": 60,
     "enforcement": "Guardian",
     "weekday_hours": {
@@ -471,8 +476,8 @@
   },
   {
     "name": "Haven Green",
-    "lat": 43.82402223208527,
-    "lng": -111.77795845682829,
+    "lat": 43.8233543417638,
+    "lng": -111.77905399769504,
     "visitor_limit_minutes": 60,
     "enforcement": "Guardian",
     "weekday_hours": {
@@ -515,14 +520,15 @@
   },
   {
     "name": "Centre Square Apartments",
-    "lat": 43.812822200989466,
-    "lng": -111.78634486106134
+    "lat": 43.81264974671413,
+    "lng": -111.78738756176335
   },
   {
     "name": "Windsor Manor",
-    "lat": 43.822305805396134,
-    "lng": -111.77898964016313,
+    "lat": 43.82214329928134,
+    "lng": -111.78010630138435,
     "visitor_limit_minutes": null,
+    "visitor_limit_signage_known": true,
     "enforcement": "RC Booting",
     "weekday_hours": {
       "start": "10:00",
@@ -568,8 +574,8 @@
   },
   {
     "name": "Aspen Village Apartments",
-    "lat": 43.814280032675136,
-    "lng": -111.77590344386635,
+    "lat": 43.814017475940624,
+    "lng": -111.77708880653225,
     "visitor_limit_minutes": 120,
     "enforcement": "Guardian",
     "weekday_hours": {
@@ -581,16 +587,11 @@
       "end": "01:00"
     },
     "riskLevel": "moderate"
-  },
-  {
-    "name": "Aspen Grove Apartments",
-    "lat": 43.8213364657993,
-    "lng": -111.79271989291061
   },
   {
     "name": "Hillcrest Townhouses",
-    "lat": 43.81610478559366,
-    "lng": -111.77702625150579,
+    "lat": 43.81603774509302,
+    "lng": -111.77733384854463,
     "visitor_limit_minutes": 120,
     "enforcement": "Guardian",
     "weekday_hours": {
@@ -604,10 +605,12 @@
     "riskLevel": "moderate"
   },
   {
-    "name": "University Courtyard",
-    "lat": 43.816996496840865,
-    "lng": -111.77627421884318,
+    "id": "university-courtyard",
+    "name": "University Courtyard (North)",
+    "lat": 43.81674992843553,
+    "lng": -111.77737114847511,
     "visitor_limit_minutes": null,
+    "visitor_limit_signage_known": true,
     "enforcement": "RC Booting",
     "weekday_hours": {
       "start": "08:00",
@@ -621,8 +624,8 @@
   },
   {
     "name": "Heritage Apartments",
-    "lat": 43.81747699663082,
-    "lng": -111.78691093519562,
+    "lat": 43.817179541425254,
+    "lng": -111.78730370321966,
     "visitor_limit_minutes": 60,
     "enforcement": "RC Booting",
     "weekday_hours": {
@@ -638,8 +641,8 @@
   },
   {
     "name": "Delta Phi Apartments",
-    "lat": 43.81728413295474,
-    "lng": -111.78762965022503,
+    "lat": 43.81709156361291,
+    "lng": -111.78790286150941,
     "visitor_limit_minutes": 60,
     "enforcement": "Guardian",
     "weekday_hours": {
@@ -654,8 +657,8 @@
   },
   {
     "name": "Arcadia Apartments",
-    "lat": 43.81797415345655,
-    "lng": -111.7876415298123,
+    "lat": 43.81806266286514,
+    "lng": -111.78792743180331,
     "visitor_limit_minutes": 60,
     "enforcement": "Guardian",
     "weekday_hours": {
@@ -670,8 +673,8 @@
   },
   {
     "name": "Harris Hall",
-    "lat": 43.81826306210651,
-    "lng": -111.78701345827218,
+    "lat": 43.81816880608688,
+    "lng": -111.78718843562189,
     "visitor_limit_minutes": 30,
     "enforcement": "Unknown",
     "weekday_hours": {
@@ -715,8 +718,8 @@
   },
   {
     "name": "Milano Flats",
-    "lat": 43.81664410766097,
-    "lng": -111.78978995428132,
+    "lat": 43.81677124385764,
+    "lng": -111.7900543149774,
     "visitor_limit_minutes": 120,
     "enforcement": "Guardian",
     "weekday_hours": {
@@ -730,15 +733,11 @@
     "riskLevel": "moderate"
   },
   {
-    "name": "Rockland Apartments",
-    "lat": 43.817341327752004,
-    "lng": -111.7907074717762
-  },
-  {
     "name": "Brigham's Mill Apartments",
     "lat": 43.81742128366401,
     "lng": -111.79200618012331,
     "visitor_limit_minutes": null,
+    "visitor_limit_signage_known": true,
     "enforcement": "BA Recovery Inc.",
     "weekday_hours": {
       "start": "10:00",
@@ -751,14 +750,9 @@
     "riskLevel": "moderate"
   },
   {
-    "name": "Brenchley Apartments",
-    "lat": 43.817204857776346,
-    "lng": -111.79295761052049
-  },
-  {
     "name": "The Roost",
-    "lat": 43.81618514457822,
-    "lng": -111.79219371360641,
+    "lat": 43.81615478445605,
+    "lng": -111.79288305144203,
     "visitor_limit_minutes": 60,
     "enforcement": "RC Booting",
     "weekday_hours": {
@@ -774,12 +768,14 @@
   {
     "name": "The Strawberry Apartments",
     "lat": 43.81640562458309,
-    "lng": -111.79402706620017
+    "lng": -111.79402706620017,
+    "visitor_limit_minutes": null,
+    "visitor_limit_signage_known": false
   },
   {
     "name": "Abbey Lane Manor",
-    "lat": 43.81706705971313,
-    "lng": -111.79421804042872,
+    "lat": 43.81692804897931,
+    "lng": -111.79496907771325,
     "visitor_limit_minutes": 60,
     "enforcement": "Guardian",
     "weekday_hours": {
@@ -794,9 +790,10 @@
   },
   {
     "name": "Temple View Apartments",
-    "lat": 43.81690170162001,
-    "lng": -111.79512516805727,
+    "lat": 43.81691945537887,
+    "lng": -111.79633972379614,
     "visitor_limit_minutes": null,
+    "visitor_limit_signage_known": true,
     "enforcement": "RC Booting",
     "weekday_hours": {
       "start": "10:00",
@@ -813,6 +810,7 @@
     "lat": 43.81736332515843,
     "lng": -111.79603229564275,
     "visitor_limit_minutes": null,
+    "visitor_limit_signage_known": true,
     "enforcement": "RC Booting",
     "weekday_hours": {
       "start": "10:00",
@@ -826,22 +824,25 @@
   },
   {
     "name": "The Sugar Apartments",
-    "lat": 43.8187068360598,
-    "lng": -111.79403661494608
+    "lat": 43.818557989820924,
+    "lng": -111.79493529102902
   },
   {
     "name": "Parkview Apartments",
-    "lat": 43.8227429369204,
-    "lng": -111.79224942058377,
+    "lat": 43.822356657601155,
+    "lng": -111.79294754902153,
     "visitor_limit_minutes": null,
+    "visitor_limit_signage_known": false,
     "enforcement": "Unknown",
     "riskLevel": "unknown",
     "notes": "Visitor parking rules not yet verified for this complex."
   },
   {
     "name": "Mountain Crest Apartments",
-    "lat": 43.8231548250913,
-    "lng": -111.79230021134286
+    "lat": 43.823046802826816,
+    "lng": -111.79312718442696,
+    "visitor_limit_minutes": null,
+    "visitor_limit_signage_known": false
   },
   {
     "name": "Sundance II",
@@ -914,8 +915,8 @@
   },
   {
     "name": "Crestwood Apartments",
-    "lat": 43.82108797020978,
-    "lng": -111.78024666896503
+    "lat": 43.82099415564811,
+    "lng": -111.7804768494937
   },
   {
     "name": "Riviera Apartments",
@@ -925,12 +926,14 @@
   {
     "name": "Colonial Heights Townhouses",
     "lat": 43.81794148176513,
-    "lng": -111.77627574910001
+    "lng": -111.77627574910001,
+    "visitor_limit_minutes": null,
+    "visitor_limit_signage_known": false
   },
   {
     "name": "Nauvoo House Apartments",
-    "lat": 43.81536963555844,
-    "lng": -111.78845151655894,
+    "lat": 43.81458689952472,
+    "lng": -111.78869050727359,
     "visitor_limit_minutes": 120,
     "enforcement": "Guardian",
     "weekday_hours": {
@@ -945,8 +948,8 @@
   },
   {
     "name": "Camden Apartments",
-    "lat": 43.81546722933358,
-    "lng": -111.79016179038788,
+    "lat": 43.81532280115582,
+    "lng": -111.79052472112119,
     "visitor_limit_minutes": 120,
     "enforcement": "RC Booting",
     "weekday_hours": {
@@ -976,25 +979,9 @@
     "riskLevel": "moderate"
   },
   {
-    "name": "University Courtyard",
-    "lat": 43.81501977756831,
-    "lng": -111.79305286160135,
-    "visitor_limit_minutes": null,
-    "enforcement": "RC Booting",
-    "weekday_hours": {
-      "start": "08:00",
-      "end": "00:00"
-    },
-    "friday_hours": {
-      "start": "10:00",
-      "end": "01:00"
-    },
-    "riskLevel": "moderate"
-  },
-  {
     "name": "Brighton Apartments",
-    "lat": 43.8132202,
-    "lng": -111.7900027,
+    "lat": 43.81379545945824,
+    "lng": -111.7911275350394,
     "visitor_limit_minutes": 60,
     "enforcement": "Guardian",
     "weekday_hours": {
@@ -1009,9 +996,10 @@
   },
   {
     "name": "Bountiful Place Apartments",
-    "lat": 43.8155404,
-    "lng": -111.7939677,
+    "lat": 43.814817589349445,
+    "lng": -111.7936255588497,
     "visitor_limit_minutes": null,
+    "visitor_limit_signage_known": true,
     "enforcement": "Guardian",
     "weekday_hours": {
       "start": "10:00",
@@ -1025,9 +1013,10 @@
   },
   {
     "name": "Davenport Apartments",
-    "lat": 43.8190881,
-    "lng": -111.7883378,
+    "lat": 43.81928900648422,
+    "lng": -111.788285256282,
     "visitor_limit_minutes": null,
+    "visitor_limit_signage_known": true,
     "enforcement": "Unknown",
     "weekday_hours": {
       "start": "10:00",

@@ -1,6 +1,5 @@
 import { Platform, StyleSheet } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import MapScreen from '../screens/MapScreen';
 import TimerScreen from '../screens/TimerScreen';
@@ -21,7 +20,7 @@ const TAB_CONFIG: Record<string, { icon: TabIcon; iconFocused: TabIcon }> = {
 const Tab = createBottomTabNavigator();
 
 export default function TabNavigator() {
-  const { colors, isDark } = useTheme();
+  const { colors } = useTheme();
 
   return (
     <Tab.Navigator
@@ -39,21 +38,11 @@ export default function TabNavigator() {
           letterSpacing: 0.2,
         },
         tabBarStyle: {
-          backgroundColor: Platform.OS === 'ios' ? 'transparent' : colors.tabBarBackground,
+          backgroundColor: colors.surface,
           borderTopColor: colors.border,
           borderTopWidth: StyleSheet.hairlineWidth,
           elevation: Platform.OS === 'android' ? 12 : 0,
         },
-        tabBarBackground:
-          Platform.OS === 'ios'
-            ? () => (
-                <BlurView
-                  intensity={isDark ? 55 : 70}
-                  tint={isDark ? 'dark' : 'light'}
-                  style={StyleSheet.absoluteFill}
-                />
-              )
-            : undefined,
         headerStyle: {
           backgroundColor: colors.background,
           borderBottomWidth: StyleSheet.hairlineWidth,
