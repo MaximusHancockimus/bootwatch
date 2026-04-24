@@ -1,8 +1,10 @@
 import { useMemo, useRef, useState } from 'react';
-import { Dimensions, FlatList, Pressable, ScrollView, StyleSheet, Text, View, ViewToken } from 'react-native';
+import { Dimensions, FlatList, Image, Pressable, ScrollView, StyleSheet, Text, View, ViewToken } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
 import { fontSize, spacing, borderRadius, shadowCard, fonts, type AppColors } from '../theme';
+
+const BOOTWATCH_ICON = require('../../assets/icon.png');
 
 const { width } = Dimensions.get('window');
 
@@ -12,6 +14,7 @@ interface Slide {
   iconColor: string;
   title: string;
   subtitle: string;
+  brandIcon?: boolean;
   features?: { icon: React.ComponentProps<typeof Ionicons>['name']; label: string; desc: string }[];
 }
 
@@ -21,6 +24,7 @@ function getSlides(colors: AppColors): Slide[] {
       id: '1',
       icon: 'shield-checkmark',
       iconColor: colors.accent,
+      brandIcon: true,
       title: 'Welcome to BootWatch',
       subtitle:
         'The community-powered app that protects students from predatory parking enforcement in Rexburg.',
@@ -99,9 +103,13 @@ export default function OnboardingScreen({ onComplete }: Props) {
         showsVerticalScrollIndicator={false}
         bounces={false}
       >
-        <View style={[styles.iconCircle, { backgroundColor: item.iconColor + '22' }]}>
-          <Ionicons name={item.icon} size={56} color={item.iconColor} />
-        </View>
+        {item.brandIcon ? (
+          <Image source={BOOTWATCH_ICON} style={styles.brandIcon} resizeMode="cover" />
+        ) : (
+          <View style={[styles.iconCircle, { backgroundColor: item.iconColor + '22' }]}>
+            <Ionicons name={item.icon} size={56} color={item.iconColor} />
+          </View>
+        )}
         <Text style={styles.slideTitle}>{item.title}</Text>
         <Text style={styles.slideSubtitle}>{item.subtitle}</Text>
 
@@ -179,6 +187,13 @@ function createStyles(colors: AppColors) {
       alignItems: 'center',
       paddingHorizontal: spacing.xl,
       paddingVertical: spacing.xl,
+    },
+    brandIcon: {
+      width: 120,
+      height: 120,
+      borderRadius: 27,
+      marginBottom: spacing.lg,
+      ...shadowCard,
     },
     iconCircle: {
       width: 100,

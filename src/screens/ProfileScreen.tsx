@@ -136,7 +136,8 @@ function nextAvailableChange(history: string[] | null | undefined): Date | null 
 
 export default function ProfileScreen() {
   const { colors, mode, setMode } = useTheme();
-  const { user, signOut } = useAuth();
+  const { user, signOut, deleteAccount } = useAuth();
+  const [deleting, setDeleting] = useState(false);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [selectedColor, setSelectedColor] = useState<string>(DEFAULT_AVATAR_COLOR);
   const [saving, setSaving] = useState(false);
@@ -270,16 +271,28 @@ export default function ProfileScreen() {
 
     // Step 2: for non-GIFs, re-open with the square cropper so users get the
     // familiar framing step. GIFs skip the cropper and are letter-boxed by
-    // the circular container (`resizeMode: 'cover'`) instead.
+    // the circular container (`resizeMode: 'cover'`) instead. We also request
+    // base64 from the second pass — see uploadPhoto comment below for why.
     if (!isGif) {
       const cropped = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
         allowsEditing: true,
         aspect: [1, 1],
         quality: 0.7,
+        base64: true,
       });
       if (cropped.canceled || !cropped.assets[0]) return;
       asset = cropped.assets[0];
+    } else {
+      // GIFs skip the cropper, but we still need bytes — re-pick with base64.
+      const withBytes = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: false,
+        quality: 1,
+        base64: true,
+      });
+      if (withBytes.canceled || !withBytes.assets[0]) return;
+      asset = withBytes.assets[0];
     }
 
     const uri = asset.uri;
@@ -292,14 +305,31 @@ export default function ProfileScreen() {
       }
       const { path, contentType } = pathInfo;
 
-      const response = await fetch(uri);
-      const blob = await response.blob();
+      // expo-image-picker returns base64 directly when requested. This avoids
+      // the broken `fetch(file://...).arrayBuffer()` path on iOS native, which
+      // silently yields zero bytes for ph:// and some file:// URIs in release
+      // builds. Web falls through to fetch since browsers handle blob URIs.
+      let arrayBuffer: ArrayBuffer | null = null;
+      if (asset.base64) {
+        const binary = globalThis.atob(asset.base64);
+        const len = binary.length;
+        const buf = new Uint8Array(len);
+        for (let i = 0; i < len; i++) buf[i] = binary.charCodeAt(i);
+        arrayBuffer = buf.buffer;
+      } else {
+        const response = await fetch(uri);
+        arrayBuffer = await response.arrayBuffer();
+      }
+
+      if (!arrayBuffer || arrayBuffer.byteLength === 0) {
+        throw new Error('Could not read the selected image. Please try a different photo.');
+      }
 
       // Enforce the size cap client-side so users see a clear message before
       // the network round-trip. The bucket also rejects over-cap uploads, so
       // a bypassed client can't sneak in a 40 MB GIF.
-      if (blob.size > AVATAR_MAX_BYTES) {
-        const mb = (blob.size / (1024 * 1024)).toFixed(1);
+      if (arrayBuffer.byteLength > AVATAR_MAX_BYTES) {
+        const mb = (arrayBuffer.byteLength / (1024 * 1024)).toFixed(1);
         throw new Error(
           `That image is ${mb} MB — profile photos must be under 2 MB. Try a smaller image${contentType === 'image/gif' ? ' or a shorter GIF' : ''}.`,
         );
@@ -307,7 +337,7 @@ export default function ProfileScreen() {
 
       const { error: uploadError } = await supabase.storage
         .from('avatars')
-        .upload(path, blob, { contentType, upsert: false });
+        .upload(path, arrayBuffer, { contentType, upsert: false });
       if (uploadError) throw uploadError;
 
       const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(path);
@@ -358,6 +388,62 @@ export default function ProfileScreen() {
     } finally {
       setPhotoUploading(false);
     }
+  }
+
+  // Two-step confirm: Apple wants deletion to be deliberate, not a one-tap
+  // mistake. The first alert explains the consequences; the second is the
+  // commit point. On web there's no Alert.alert, so we fall back to confirm().
+  function handleDeleteAccountPress() {
+    if (deleting) return;
+
+    const runDelete = async () => {
+      setDeleting(true);
+      const { error } = await deleteAccount();
+      setDeleting(false);
+      if (error) {
+        const message = `Could not delete account: ${error}`;
+        if (Platform.OS === 'web') {
+          // eslint-disable-next-line no-alert
+          window.alert(message);
+        } else {
+          Alert.alert('Delete failed', message);
+        }
+      }
+    };
+
+    const title = 'Delete your BootWatch account?';
+    const body =
+      'This permanently removes your profile, saved complexes, notification settings, and profile photo. ' +
+      'Sighting reports you submitted will stay in the feed but will no longer be linked to you. ' +
+      'This cannot be undone.';
+
+    if (Platform.OS === 'web') {
+      // eslint-disable-next-line no-alert
+      if (window.confirm(`${title}\n\n${body}`)) {
+        // eslint-disable-next-line no-alert
+        if (window.confirm('Are you absolutely sure? This cannot be undone.')) {
+          void runDelete();
+        }
+      }
+      return;
+    }
+
+    Alert.alert(title, body, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: () =>
+          Alert.alert(
+            'Are you sure?',
+            'This action cannot be undone.',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              { text: 'Delete account', style: 'destructive', onPress: runDelete },
+            ],
+          ),
+      },
+    ]);
   }
 
   async function handleColorSelect(color: string) {
@@ -575,6 +661,24 @@ export default function ProfileScreen() {
           <Ionicons name="log-out-outline" size={20} color={colors.danger} />
           <Text style={styles.menuItemTextDanger}>Sign Out</Text>
         </Pressable>
+        <View style={styles.menuDivider} />
+        <Pressable
+          style={styles.menuItem}
+          onPress={handleDeleteAccountPress}
+          disabled={deleting}
+        >
+          {deleting ? (
+            <ActivityIndicator size="small" color={colors.danger} />
+          ) : (
+            <Ionicons name="trash-outline" size={20} color={colors.danger} />
+          )}
+          <Text style={styles.menuItemTextDanger}>
+            {deleting ? 'Deleting…' : 'Delete Account'}
+          </Text>
+        </Pressable>
+        <Text style={styles.deleteHint}>
+          Permanently removes your profile and personal data. Sighting reports stay in the feed but are anonymized.
+        </Text>
       </View>
 
       <Text style={styles.version}>BootWatch v1.0.0</Text>
@@ -910,6 +1014,18 @@ function createStyles(colors: AppColors) {
     fontSize: fontSize.md,
     fontFamily: fonts.bodyMedium,
     color: colors.danger,
+  },
+  menuDivider: {
+    height: 1,
+    backgroundColor: colors.border,
+    marginVertical: spacing.xs,
+  },
+  deleteHint: {
+    fontSize: fontSize.xs,
+    fontFamily: fonts.body,
+    color: colors.textSecondary,
+    lineHeight: 18,
+    marginTop: spacing.xs,
   },
   version: {
     fontSize: fontSize.xs,

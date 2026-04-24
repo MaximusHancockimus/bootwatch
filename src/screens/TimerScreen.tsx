@@ -235,13 +235,16 @@ export default function TimerScreen() {
       {selectedComplex && !showSelector && (
         <Pressable style={styles.selectedCard} onPress={() => setShowSelector(true)}>
           <View style={styles.selectedCardHeader}>
-            <Text style={styles.selectedCardName}>{selectedComplex.name}</Text>
+            <Text style={styles.selectedCardName} numberOfLines={2} ellipsizeMode="tail">
+              {selectedComplex.name}
+            </Text>
             <RiskBadge level={selectedComplex.riskLevel} />
           </View>
           <Text style={styles.selectedCardDetail}>
-            {selectedComplex.visitorTimeLimitMinutes && selectedComplex.visitorTimeLimitMinutes > 0
-              ? `${formatVisitorLimitMinutes(selectedComplex.visitorTimeLimitMinutes)} limit`
-              : 'No time limit'}
+            {formatVisitorLimitMinutes(
+              selectedComplex.visitorTimeLimitMinutes,
+              selectedComplex.visitorLimitSignageKnown,
+            )}
             {' · '}
             {selectedComplex.bootingCompany ?? 'No boot company'}
           </Text>
@@ -288,10 +291,19 @@ export default function TimerScreen() {
               style={[styles.selectorItem, selectedId === c.id && styles.selectorItemActive]}
               onPress={() => { setSelectedId(c.id); setShowSelector(false); }}
             >
-              <View style={[styles.riskDot, { backgroundColor: getVisitorLimitMarkerColor(c.visitorTimeLimitMinutes) }]} />
+              <View
+                style={[
+                  styles.riskDot,
+                  { backgroundColor: getVisitorLimitMarkerColor(c.visitorTimeLimitMinutes, c.visitorLimitSignageKnown) },
+                ]}
+              />
               <View style={styles.selectorItemContent}>
-                <Text style={styles.selectorItemText}>{c.name}</Text>
-                <Text style={styles.selectorItemMeta}>{c.visitorTimeLimitMinutes ?? '?'} min</Text>
+                <Text style={styles.selectorItemText} numberOfLines={2} ellipsizeMode="tail">
+                  {c.name}
+                </Text>
+                <Text style={styles.selectorItemMeta}>
+                  {formatVisitorLimitMinutes(c.visitorTimeLimitMinutes, c.visitorLimitSignageKnown)}
+                </Text>
               </View>
             </Pressable>
           ))}
@@ -378,10 +390,13 @@ function createStyles(colors: any) {
   selectedCardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
     marginBottom: spacing.xs,
   },
   selectedCardName: {
+    flex: 1,
+    minWidth: 0,
     fontSize: fontSize.lg,
     fontFamily: fonts.display,
     color: colors.text,
@@ -453,16 +468,21 @@ function createStyles(colors: any) {
   },
   selectorItemContent: {
     flex: 1,
+    minWidth: 0,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    gap: spacing.sm,
   },
   selectorItemText: {
+    flex: 1,
+    minWidth: 0,
     fontSize: fontSize.md,
     fontFamily: fonts.bodyMedium,
     color: colors.text,
   },
   selectorItemMeta: {
+    flexShrink: 0,
     fontSize: fontSize.sm,
     fontFamily: fonts.body,
     color: colors.textSecondary,

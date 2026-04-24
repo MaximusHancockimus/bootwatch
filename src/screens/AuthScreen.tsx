@@ -1,9 +1,11 @@
 import { useState } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Image, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { fontSize, spacing, borderRadius, shadowCard, type AppColors, fonts } from '../theme';
+
+const BOOTWATCH_MONO = require('../../assets/android-icon-monochrome.png');
 
 export default function AuthScreen() {
   const { colors } = useTheme();
@@ -64,8 +66,11 @@ export default function AuthScreen() {
   return (
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={styles.card}>
-        <Ionicons name="shield-checkmark" size={48} color={colors.accent} />
-        <Text style={styles.title}>BootWatch</Text>
+        <Image source={BOOTWATCH_MONO} style={[styles.brandMark, { tintColor: colors.accent }]} resizeMode="contain" />
+        <View style={styles.titleRow}>
+          <Text style={styles.title}>BootWatch</Text>
+          <Text style={styles.titleTm}>™</Text>
+        </View>
         <Text style={styles.subtitle}>
           {isSignUp ? 'Create an account to report sightings' : 'Sign in to your account'}
         </Text>
@@ -183,10 +188,26 @@ function createStyles(colors: AppColors) {
       borderColor: colors.border,
       ...shadowCard,
     },
+    brandMark: {
+      width: 150,
+      height: 150,
+      marginBottom: -spacing.sm,
+    },
+    titleRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+    },
     title: {
       fontSize: fontSize.xxl,
       fontFamily: fonts.displayBold,
       color: colors.text,
+    },
+    titleTm: {
+      fontSize: 12,
+      fontFamily: fonts.bodyMedium,
+      color: colors.textSecondary,
+      marginTop: 4,
+      marginLeft: 2,
     },
     subtitle: {
       fontSize: fontSize.md,

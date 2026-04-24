@@ -1,5 +1,5 @@
 import { forwardRef } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { Complex } from '../types/complex';
 import { getVisitorLimitMarkerColor } from '../utils/visitorLimitColors';
@@ -21,26 +21,30 @@ function PinMarker({ color }: { color: string }) {
   );
 }
 
-// Force Google Maps on both iOS and Android so coordinates + tile imagery are
-// identical across platforms (Apple Maps on iOS drifts slightly from Google's).
+// Google Maps on Android (required; Android has no built-in map) and Apple Maps
+// on iOS. iOS Google Maps support via react-native-maps is currently broken on
+// RN 0.83 / New Architecture (missing react-native-google-maps podspec); Apple
+// Maps gives a near-identical visual experience for marker-based displays.
 const NativeMap = forwardRef<MapView, Props>(({ complexes, onMarkerPress, colorOverrides }, ref) => (
   <MapView
     ref={ref}
-    provider={PROVIDER_GOOGLE}
+    provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
     style={styles.map}
     initialRegion={REXBURG_CENTER}
     showsUserLocation
   >
     {complexes.map((complex) => {
       const color =
-        colorOverrides?.get(complex.id) ?? getVisitorLimitMarkerColor(complex.visitorTimeLimitMinutes);
+        colorOverrides?.get(complex.id) ??
+          getVisitorLimitMarkerColor(complex.visitorTimeLimitMinutes, complex.visitorLimitSignageKnown);
       return (
         <Marker
-          key={complex.id}
+          key={`${complex.id}:${complex.latitude}:${complex.longitude}`}
           coordinate={{ latitude: complex.latitude, longitude: complex.longitude }}
           title={complex.name}
           onPress={() => onMarkerPress(complex)}
           anchor={{ x: 0.5, y: 0.5 }}
+          tracksViewChanges={false}
         >
           <PinMarker color={color} />
         </Marker>

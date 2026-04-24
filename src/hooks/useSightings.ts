@@ -80,6 +80,12 @@ export function useSightings() {
         const newSighting = enrichSighting(payload.new, profileMap);
         setSightings((prev) => [newSighting, ...prev]);
       })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'sightings' }, (payload) => {
+        const deletedId = (payload.old as { id?: string })?.id;
+        if (deletedId) {
+          setSightings((prev) => prev.filter((s) => s.id !== deletedId));
+        }
+      })
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
@@ -89,5 +95,39 @@ export function useSightings() {
     return sightings.find((s) => s.complex_id === complexId);
   }
 
-  return { sightings, loading, error, refresh: fetchSightings, getLatestSighting };
+  // Best-effort photo cleanup. The DB delete is the source of truth — if storage
+  // removal fails, we still consider the sighting deleted (orphan photos are
+  // cheap and Supabase has lifecycle policies for cleanup).
+  async function removePhotoIfOwned(photoUrl: string | null) {
+    if (!photoUrl) return;
+    // Public URLs look like .../storage/v1/object/public/sighting-photos/<userId>/<file>
+    const marker = '/sighting-photos/';
+    const idx = photoUrl.indexOf(marker);
+    if (idx === -1) return;
+    const path = photoUrl.slice(idx + marker.length);
+    if (!path) return;
+    await supabase.storage.from('sighting-photos').remove([path]);
+  }
+
+  const deleteSighting = useCallback(async (id: string): Promise<{ error: string | null }> => {
+    const target = sightings.find((s) => s.id === id);
+    // Optimistically remove from UI; restore if the server rejects.
+    setSightings((prev) => prev.filter((s) => s.id !== id));
+
+    const { error: dbError } = await supabase.from('sightings').delete().eq('id', id);
+
+    if (dbError) {
+      console.error('[useSightings] delete failed:', dbError);
+      if (target) setSightings((prev) => [target, ...prev].sort((a, b) => b.created_at.localeCompare(a.created_at)));
+      return { error: dbError.message };
+    }
+
+    if (target?.photo_url) {
+      void removePhotoIfOwned(target.photo_url);
+    }
+
+    return { error: null };
+  }, [sightings]);
+
+  return { sightings, loading, error, refresh: fetchSightings, getLatestSighting, deleteSighting };
 }

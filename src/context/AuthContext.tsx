@@ -22,6 +22,7 @@ interface AuthState {
   signInWithGoogle: () => Promise<{ error: string | null }>;
   signInWithApple: () => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
+  deleteAccount: () => Promise<{ error: string | null }>;
 }
 
 const AuthContext = createContext<AuthState | undefined>(undefined);
@@ -217,6 +218,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut();
   }
 
+  // Apple Guideline 5.1.1(v) requires in-app account deletion. The edge
+  // function resolves auth.uid() from the user's JWT, so a compromised client
+  // can't delete someone else's account by lying about the user id.
+  async function deleteAccount() {
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+      if (!accessToken) return { error: 'You are not signed in.' };
+
+      const { data, error } = await supabase.functions.invoke('delete-account', {
+        // No body needed — the edge function reads the user id from the JWT.
+      });
+
+      if (error) {
+        console.error('[auth] delete-account invoke failed:', error);
+        return { error: error.message ?? 'Could not delete account.' };
+      }
+      if (data && typeof data === 'object' && 'error' in data && data.error) {
+        return { error: String(data.error) };
+      }
+
+      // Local session may still be cached even though the server user is gone;
+      // sign out explicitly so the UI returns to the auth screen.
+      await supabase.auth.signOut();
+      return { error: null };
+    } catch (e) {
+      console.error('[auth] deleteAccount failed:', e);
+      const message = e instanceof Error ? e.message : 'Could not delete account.';
+      return { error: message };
+    }
+  }
+
   return (
     <AuthContext.Provider value={{
       session,
@@ -227,6 +260,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signInWithGoogle,
       signInWithApple,
       signOut,
+      deleteAccount,
     }}>
       {children}
     </AuthContext.Provider>
