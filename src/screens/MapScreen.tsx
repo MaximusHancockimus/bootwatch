@@ -10,6 +10,7 @@ import { useSightings } from '../hooks/useSightings';
 import { useSavedComplexes } from '../hooks/useSavedComplexes';
 import { useHeatData, getHeatLevel, HEAT_COLORS, HEAT_LABELS } from '../hooks/useHeatData';
 import ComplexDetailSheet from '../components/ComplexDetailSheet';
+import ReportSightingModal from '../components/ReportSightingModal';
 import { fontSize, fontWeight, spacing, borderRadius, shadowFloat, shadowCard, fonts } from '../theme';
 import { useTheme } from '../context/ThemeContext';
 import { formatVisitorLimitMinutes } from '../utils/parkingDisplay';
@@ -33,6 +34,8 @@ export default function MapScreen() {
   const [panelExpanded, setPanelExpanded] = useState(false);
   const [mapMode, setMapMode] = useState<MapMode>('complexes');
   const [mapLegendExpanded, setMapLegendExpanded] = useState(true);
+  const [reportVisible, setReportVisible] = useState(false);
+  const [reportInitialComplexId, setReportInitialComplexId] = useState<string | null>(null);
   const navigation = useNavigation<any>();
   const { getLatestSighting, error: sightingsError, refresh: refreshSightings } = useSightings();
   const { isSaved, toggle: toggleSave } = useSavedComplexes();
@@ -66,6 +69,17 @@ export default function MapScreen() {
     },
     [navigation],
   );
+
+  const handleReportFromSheet = useCallback((complex: Complex) => {
+    setSheetVisible(false);
+    setReportInitialComplexId(complex.id);
+    setReportVisible(true);
+  }, []);
+
+  const closeReportModal = useCallback(() => {
+    setReportVisible(false);
+    setReportInitialComplexId(null);
+  }, []);
 
   const styles = createStyles(colors);
 
@@ -256,6 +270,7 @@ export default function MapScreen() {
         visible={sheetVisible}
         onClose={() => setSheetVisible(false)}
         onParkHere={handleParkHere}
+        onReport={handleReportFromSheet}
         lastSightingAt={
           selectedComplex
             ? (() => {
@@ -267,6 +282,16 @@ export default function MapScreen() {
         isSaved={selectedComplex ? isSaved(selectedComplex.id) : false}
         onToggleSave={(c) => toggleSave(c.id)}
         sightingCount={selectedComplex ? getEntry(selectedComplex.id).count : 0}
+      />
+
+      <ReportSightingModal
+        visible={reportVisible}
+        onClose={closeReportModal}
+        onSuccess={() => {
+          refreshSightings();
+          void refreshHeat(true);
+        }}
+        initialComplexId={reportInitialComplexId}
       />
     </View>
   );

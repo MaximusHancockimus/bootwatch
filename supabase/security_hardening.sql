@@ -31,18 +31,32 @@ create policy "Users update own push token"
 create policy "Users delete own push token"
   on public.push_tokens for delete using (auth.uid() = user_id);
 
-insert into public.push_tokens (user_id, token, updated_at)
-select id, push_token, coalesce(updated_at, now())
-from public.profiles
-where push_token is not null and trim(push_token) <> ''
-on conflict (user_id) do update set
-  token = excluded.token,
-  updated_at = excluded.updated_at;
+-- Older prototypes stored Expo tokens on profiles.push_token; current schema uses
+-- push_tokens only. Skip data copy if that column was never added.
+do $$
+begin
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'profiles'
+      and column_name = 'push_token'
+  ) then
+    insert into public.push_tokens (user_id, token, updated_at)
+    select id, push_token, coalesce(updated_at, now())
+    from public.profiles
+    where push_token is not null and trim(push_token) <> ''
+    on conflict (user_id) do update set
+      token = excluded.token,
+      updated_at = excluded.updated_at;
+  end if;
+end $$;
 
 alter table public.profiles drop column if exists push_token;
 
 -- ─── 2. Sightings: insert only as self + clamp created_at ───────────────────
 drop policy if exists "Authenticated users can insert sightings" on public.sightings;
+drop policy if exists "Authenticated users insert own sightings" on public.sightings;
 
 create policy "Authenticated users insert own sightings"
   on public.sightings for insert

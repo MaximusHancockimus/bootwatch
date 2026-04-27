@@ -606,7 +606,7 @@
   },
   {
     "id": "university-courtyard",
-    "name": "University Courtyard (North)",
+    "name": "University Courtyard",
     "lat": 43.81674992843553,
     "lng": -111.77737114847511,
     "visitor_limit_minutes": null,

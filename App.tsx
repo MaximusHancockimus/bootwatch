@@ -7,6 +7,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
+import { ParkingTimerProvider } from './src/context/ParkingTimerContext';
 import { usePushToken } from './src/hooks/usePushToken';
 import TabNavigator from './src/navigation/TabNavigator';
 import AuthScreen from './src/screens/AuthScreen';
@@ -45,7 +46,13 @@ function RootNavigator() {
     return <OnboardingScreen onComplete={handleOnboardingComplete} />;
   }
 
-  return user ? <TabNavigator /> : <AuthScreen />;
+  return user ? (
+    <ParkingTimerProvider>
+      <TabNavigator />
+    </ParkingTimerProvider>
+  ) : (
+    <AuthScreen />
+  );
 }
 
 export default function App() {

@@ -53,6 +53,7 @@ export default function TimerScreen() {
   const [customMinutes, setCustomMinutes] = useState('');
   const [showSelector, setShowSelector] = useState(false);
   const [showPushExplainer, setShowPushExplainer] = useState(false);
+  const [activeAreaAlertsExpanded, setActiveAreaAlertsExpanded] = useState(true);
 
   useFocusEffect(
     useCallback(() => {
@@ -74,16 +75,42 @@ export default function TimerScreen() {
   // Handle "Park Here" navigation from MapScreen
   useEffect(() => {
     const complexId = route.params?.complexId;
-    if (complexId && !timer.isRunning) {
+    if (complexId && timer.phase === 'idle') {
       setSelectedId(complexId);
       setShowSelector(false);
     }
-  }, [route.params?.complexId, timer.isRunning]);
+  }, [route.params?.complexId, timer.phase]);
+
+  useEffect(() => {
+    if (timer.activeComplexId && selectedId == null) {
+      setSelectedId(timer.activeComplexId);
+    }
+  }, [timer.activeComplexId, selectedId]);
 
   const selectedComplex = useMemo(
     () => (selectedId && selectedId !== CUSTOM_TIMER_ID ? getComplexById(selectedId) : null),
     [selectedId],
   );
+
+  const activeDisplayComplex = useMemo(() => {
+    const id = selectedId && selectedId !== CUSTOM_TIMER_ID ? selectedId : timer.activeComplexId;
+    if (!id) return null;
+    return getComplexById(id) ?? null;
+  }, [selectedId, timer.activeComplexId]);
+
+  const isComplexTimer = !!(timer.activeComplexId || activeDisplayComplex);
+
+  const areaAlertsDescription = useMemo(() => {
+    if (timer.permissionStatus !== 'granted') {
+      return 'Turn on notifications in Settings to get alerts if a boot truck is spotted near you or someone reports a booting nearby.';
+    }
+    const main =
+      "You'll get a push if someone reports a boot truck in the area, or that they were booted nearby. Reports come from the community, not the building.";
+    if (isComplexTimer) {
+      return `${main} After visitor time runs out, these alerts keep going until you tap I've left.`;
+    }
+    return main;
+  }, [timer.permissionStatus, isComplexTimer]);
 
   const durationMinutes = useMemo(() => {
     if (selectedId === CUSTOM_TIMER_ID) {
@@ -93,17 +120,25 @@ export default function TimerScreen() {
     return selectedComplex?.visitorTimeLimitMinutes ?? 0;
   }, [selectedId, selectedComplex, customMinutes]);
 
-  const canStart = durationMinutes > 0 && !timer.isRunning;
+  const canStart = durationMinutes > 0 && !timer.isRunning && timer.phase !== 'expired';
 
   const handleStart = useCallback(() => {
     if (canStart) {
       if (Platform.OS !== 'web') {
         void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       }
+      setActiveAreaAlertsExpanded(true);
       const complexId = selectedId !== CUSTOM_TIMER_ID ? selectedId ?? undefined : undefined;
       timer.start(durationMinutes, complexId);
     }
   }, [canStart, durationMinutes, selectedId, timer]);
+
+  const toggleActiveAreaAlerts = useCallback(() => {
+    if (Platform.OS !== 'web') {
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    setActiveAreaAlertsExpanded((e) => !e);
+  }, []);
 
   const phaseColor = PHASE_COLORS[timer.phase];
 
@@ -133,13 +168,13 @@ export default function TimerScreen() {
       <ScreenGradientBackdrop>
       <View style={styles.container}>
         <View style={styles.timerActive}>
-          {selectedComplex && (
+          {activeDisplayComplex && (
             <View style={styles.activeComplexInfo}>
-              <Text style={styles.activeComplexName}>{selectedComplex.name}</Text>
-              <RiskBadge level={selectedComplex.riskLevel} />
+              <Text style={styles.activeComplexName}>{activeDisplayComplex.name}</Text>
+              <RiskBadge level={activeDisplayComplex.riskLevel} />
             </View>
           )}
-          {selectedId === CUSTOM_TIMER_ID && (
+          {selectedId === CUSTOM_TIMER_ID && !activeDisplayComplex && (
             <Text style={styles.activeComplexName}>Custom Timer</Text>
           )}
 
@@ -153,7 +188,10 @@ export default function TimerScreen() {
             {timer.phase === 'running' && "You're good \u2014 timer running"}
             {timer.phase === 'warning' && "Heads up \u2014 under 10 minutes"}
             {timer.phase === 'critical' && "Move now \u2014 under 5 minutes!"}
-            {timer.phase === 'expired' && "Time is up \u2014 move your car!"}
+            {timer.phase === 'expired' &&
+              (timer.parkingOverLimit && (timer.activeComplexId || activeDisplayComplex)
+                ? "Visitor time is up. You’ll still get area alerts until you’ve left. Tap I’ve left when you go."
+                : "Time is up \u2014 move your car!")}
           </Text>
 
           {showTimerMascot && timer.phase !== 'expired' && (
@@ -178,18 +216,66 @@ export default function TimerScreen() {
                 styles.progressBarFill,
                 {
                   backgroundColor: phaseColor,
-                  width: timer.totalSeconds > 0
-                    ? `${(timer.remainingSeconds / timer.totalSeconds) * 100}%`
-                    : '0%',
+                  width:
+                    timer.totalSeconds > 0
+                      ? `${Math.min(100, Math.max(0, (timer.remainingSeconds / timer.totalSeconds) * 100))}%`
+                      : '0%',
                 },
               ]}
             />
           </View>
 
+          <View
+            style={[
+              styles.activeAlertsPanel,
+              timer.permissionStatus !== 'granted' && styles.activeAlertsPanelMuted,
+            ]}
+            accessibilityLabel="Nearby booter and boot truck notifications"
+          >
+            <Pressable
+              onPress={toggleActiveAreaAlerts}
+              style={styles.activeAlertsTab}
+              accessibilityRole="button"
+              accessibilityState={{ expanded: activeAreaAlertsExpanded }}
+            >
+              <Ionicons
+                name="notifications"
+                size={20}
+                color={timer.permissionStatus === 'granted' ? colors.primary : colors.textSecondary}
+              />
+              <View style={styles.activeAlertsTabTitleWrap}>
+                <Text style={styles.activeAlertsTabTitle} numberOfLines={1}>
+                  Area alerts
+                </Text>
+                <Text style={styles.activeAlertsTabSubtitle} numberOfLines={1}>
+                  {activeAreaAlertsExpanded
+                    ? 'Tap to hide'
+                    : timer.permissionStatus === 'granted'
+                      ? 'How nearby pushes work'
+                      : 'Notifications off — tap to read'}
+                </Text>
+              </View>
+              <Ionicons
+                name={activeAreaAlertsExpanded ? 'chevron-up' : 'chevron-down'}
+                size={20}
+                color={colors.textSecondary}
+              />
+            </Pressable>
+            {activeAreaAlertsExpanded && (
+              <View style={styles.activeAlertsBody}>
+                <Text style={styles.activeAlertsDescription}>{areaAlertsDescription}</Text>
+              </View>
+            )}
+          </View>
+
           <Pressable style={styles.cancelButton} onPress={timer.cancel}>
             <Ionicons name="stop-circle-outline" size={22} color={colors.danger} />
             <Text style={styles.cancelButtonText}>
-              {timer.phase === 'expired' ? 'Dismiss' : "I'm Leaving"}
+              {timer.phase === 'expired' && timer.parkingOverLimit && (timer.activeComplexId || activeDisplayComplex)
+                ? "I've left"
+                : timer.phase === 'expired'
+                  ? 'Dismiss'
+                  : "I'm Leaving"}
             </Text>
           </Pressable>
         </View>
@@ -591,6 +677,62 @@ function createStyles(colors: any) {
   progressBarFill: {
     height: '100%',
     borderRadius: borderRadius.full,
+  },
+  activeAlertsPanel: {
+    width: '100%',
+    maxWidth: 400,
+    marginTop: spacing.md,
+    borderRadius: borderRadius.lg,
+    overflow: 'hidden',
+    backgroundColor: colors.infoTint,
+    borderWidth: 1,
+    borderColor: colors.border,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.04,
+        shadowRadius: 4,
+      },
+      android: { elevation: 1 },
+      default: {},
+    }),
+  },
+  activeAlertsPanelMuted: {
+    opacity: 0.95,
+  },
+  activeAlertsTab: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    gap: spacing.sm,
+  },
+  activeAlertsTabTitleWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+  activeAlertsTabTitle: {
+    fontSize: fontSize.md,
+    fontFamily: fonts.bodyMedium,
+    color: colors.text,
+  },
+  activeAlertsTabSubtitle: {
+    fontSize: fontSize.xs,
+    fontFamily: fonts.body,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  activeAlertsBody: {
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.md,
+    paddingTop: 0,
+  },
+  activeAlertsDescription: {
+    fontSize: fontSize.sm,
+    fontFamily: fonts.body,
+    color: colors.textSecondary,
+    lineHeight: 20,
   },
   cancelButton: {
     flexDirection: 'row',

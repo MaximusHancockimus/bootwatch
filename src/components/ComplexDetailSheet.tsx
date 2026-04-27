@@ -17,6 +17,8 @@ interface Props {
   visible: boolean;
   onClose: () => void;
   onParkHere: (complex: Complex) => void;
+  /** Opens the report flow with this complex; shown as a primary action on the sheet. */
+  onReport?: (complex: Complex) => void;
   lastSightingAt?: Date | null;
   isSaved?: boolean;
   onToggleSave?: (complex: Complex) => void;
@@ -39,6 +41,7 @@ export default function ComplexDetailSheet({
   visible,
   onClose,
   onParkHere,
+  onReport,
   lastSightingAt,
   isSaved,
   onToggleSave,
@@ -70,7 +73,15 @@ export default function ComplexDetailSheet({
         <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Close" />
         <View style={styles.sheet}>
           <View style={styles.accentStrip} />
-          <View style={styles.handle} />
+          <Pressable
+            onPress={onClose}
+            style={({ pressed }) => [styles.handleDismiss, pressed && styles.handleDismissPressed]}
+            accessibilityLabel="Close apartment details"
+            accessibilityRole="button"
+            hitSlop={{ top: 10, bottom: 6, left: 60, right: 60 }}
+          >
+            <View style={styles.handle} />
+          </Pressable>
 
           <ScrollView
             style={styles.scrollArea}
@@ -169,6 +180,18 @@ export default function ComplexDetailSheet({
             </Pressable>
           )}
 
+          {onReport && (
+            <Pressable
+              style={({ pressed }) => [styles.reportButton, pressed && styles.reportButtonPressed]}
+              onPress={() => onReport(complex)}
+              accessibilityRole="button"
+              accessibilityLabel="Report a sighting at this apartment complex"
+            >
+              <Ionicons name="alert-circle-outline" size={20} color={colors.accent} />
+              <Text style={styles.reportButtonText}>Report a sighting</Text>
+            </Pressable>
+          )}
+
           <Pressable style={styles.parkButton} onPress={() => onParkHere(complex)}>
             <Ionicons name="timer-outline" size={20} color={colors.textInverse} />
             <Text style={styles.parkButtonText}>Park here</Text>
@@ -242,14 +265,20 @@ function createStyles(colors: import('../theme').AppColors) {
       borderTopLeftRadius: borderRadius.xl,
       borderTopRightRadius: borderRadius.xl,
     },
+    handleDismiss: {
+      alignItems: 'center',
+      paddingTop: spacing.sm,
+      paddingBottom: spacing.md,
+      paddingHorizontal: spacing.lg,
+    },
+    handleDismissPressed: {
+      opacity: 0.7,
+    },
     handle: {
       width: 44,
       height: 5,
       borderRadius: 3,
       backgroundColor: colors.border,
-      alignSelf: 'center',
-      marginBottom: spacing.md,
-      marginTop: spacing.sm,
     },
     header: {
       flexDirection: 'row',
@@ -411,6 +440,26 @@ function createStyles(colors: import('../theme').AppColors) {
       fontFamily: fonts.body,
       color: colors.textSecondary,
       marginTop: 2,
+    },
+    reportButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: spacing.md + 2,
+      borderRadius: borderRadius.md,
+      gap: spacing.sm,
+      borderWidth: 2,
+      borderColor: colors.accent,
+      backgroundColor: colors.surface,
+      marginBottom: spacing.sm,
+    },
+    reportButtonPressed: {
+      opacity: 0.85,
+    },
+    reportButtonText: {
+      color: colors.accent,
+      fontSize: fontSize.lg,
+      fontFamily: fonts.display,
     },
     parkButton: {
       backgroundColor: colors.primary,

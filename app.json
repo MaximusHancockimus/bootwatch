@@ -15,12 +15,12 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.bootwatch.app",
-      "buildNumber": "4",
+      "buildNumber": "6",
       "usesAppleSignIn": true
     },
     "android": {
       "package": "com.bootwatch.app",
-      "versionCode": 1,
+      "versionCode": 3,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",

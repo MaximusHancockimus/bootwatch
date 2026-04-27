@@ -563,7 +563,7 @@ export const complexes: Complex[] = [
   },
   {
     id: 'university-courtyard',
-    name: "University Courtyard (North)",
+    name: "University Courtyard",
     address: 'Rexburg, ID',
     latitude: 43.81674992843553,
     longitude: -111.77737114847511,

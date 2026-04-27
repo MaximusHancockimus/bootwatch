@@ -13,7 +13,9 @@
     "submit:ios": "eas submit --platform ios --latest",
     "submit:android": "eas submit --platform android --latest",
     "ota": "eas update --branch production",
-    "ota:preview": "eas update --branch preview"
+    "ota:preview": "eas update --branch preview",
+    "supabase:vanity:check": "npx supabase vanity-subdomains check-availability --experimental --desired-subdomain bootwatch",
+    "supabase:vanity:activate": "npx supabase vanity-subdomains activate --experimental --desired-subdomain bootwatch"
   },
   "dependencies": {
     "@expo-google-fonts/dm-sans": "^0.4.2",

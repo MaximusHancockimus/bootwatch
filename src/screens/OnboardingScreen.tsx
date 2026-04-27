@@ -4,7 +4,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
 import { fontSize, spacing, borderRadius, shadowCard, fonts, type AppColors } from '../theme';
 
-const BOOTWATCH_ICON = require('../../assets/icon.png');
+/** Opaque / white from icon.png; monochrome tints for transparent look on the slide background. */
+const BOOTWATCH_LOGO = require('../../assets/android-icon-monochrome.png');
 
 const { width } = Dimensions.get('window');
 
@@ -104,7 +105,12 @@ export default function OnboardingScreen({ onComplete }: Props) {
         bounces={false}
       >
         {item.brandIcon ? (
-          <Image source={BOOTWATCH_ICON} style={styles.brandIcon} resizeMode="cover" />
+          <Image
+            source={BOOTWATCH_LOGO}
+            style={[styles.brandIcon, { tintColor: colors.accent }]}
+            resizeMode="contain"
+            accessibilityLabel="BootWatch"
+          />
         ) : (
           <View style={[styles.iconCircle, { backgroundColor: item.iconColor + '22' }]}>
             <Ionicons name={item.icon} size={56} color={item.iconColor} />
@@ -189,11 +195,9 @@ function createStyles(colors: AppColors) {
       paddingVertical: spacing.xl,
     },
     brandIcon: {
-      width: 120,
-      height: 120,
-      borderRadius: 27,
+      width: 150,
+      height: 150,
       marginBottom: spacing.lg,
-      ...shadowCard,
     },
     iconCircle: {
       width: 100,

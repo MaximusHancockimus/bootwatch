@@ -1,4 +1,4 @@
-import { useState, type CSSProperties } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import { ActionSheetIOS, ActivityIndicator, Alert, Image, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -6,6 +6,7 @@ import * as Haptics from 'expo-haptics';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { complexes } from '../data/complexes';
+import { base64ToUint8Array } from '../utils/base64ToBytes';
 import { ReportType } from '../types/sighting';
 import { getVisitorLimitMarkerColor } from '../utils/visitorLimitColors';
 import { fontSize, spacing, borderRadius, shadowFloat, fonts } from '../theme';
@@ -15,6 +16,8 @@ interface Props {
   visible: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  /** When set and the modal opens, pre-select this complex (e.g. opened from map apartment sheet). */
+  initialComplexId?: string | null;
 }
 
 const TIME_OPTIONS = [
@@ -25,29 +28,7 @@ const TIME_OPTIONS = [
   { label: '1 hour ago', minutes: 60 },
 ];
 
-// Pure-JS base64 → Uint8Array. Avoids relying on Hermes' `atob`, which has
-// inconsistent behavior across React Native release builds.
-const BASE64_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
-function decodeBase64(input: string): Uint8Array {
-  const clean = input.replace(/[^A-Za-z0-9+/=]/g, '');
-  const padding = clean.endsWith('==') ? 2 : clean.endsWith('=') ? 1 : 0;
-  const byteLen = (clean.length / 4) * 3 - padding;
-  const out = new Uint8Array(byteLen);
-  let outIdx = 0;
-  for (let i = 0; i < clean.length; i += 4) {
-    const c1 = BASE64_CHARS.indexOf(clean[i]);
-    const c2 = BASE64_CHARS.indexOf(clean[i + 1]);
-    const c3 = BASE64_CHARS.indexOf(clean[i + 2]);
-    const c4 = BASE64_CHARS.indexOf(clean[i + 3]);
-    const triplet = (c1 << 18) | (c2 << 12) | ((c3 & 0x3f) << 6) | (c4 & 0x3f);
-    if (outIdx < byteLen) out[outIdx++] = (triplet >> 16) & 0xff;
-    if (outIdx < byteLen) out[outIdx++] = (triplet >> 8) & 0xff;
-    if (outIdx < byteLen) out[outIdx++] = triplet & 0xff;
-  }
-  return out;
-}
-
-export default function ReportSightingModal({ visible, onClose, onSuccess }: Props) {
+export default function ReportSightingModal({ visible, onClose, onSuccess, initialComplexId }: Props) {
   const { user } = useAuth();
   const { colors } = useTheme();
   const styles = createStyles(colors);
@@ -61,6 +42,12 @@ export default function ReportSightingModal({ visible, onClose, onSuccess }: Pro
   const [photoMime, setPhotoMime] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [photoWarning, setPhotoWarning] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (visible && initialComplexId) {
+      setSelectedComplexId(initialComplexId);
+    }
+  }, [visible, initialComplexId]);
 
   function clearPhoto() {
     setPhotoUri(null);
@@ -166,7 +153,7 @@ export default function ReportSightingModal({ visible, onClose, onSuccess }: Pro
       // global `atob` has historically been unreliable in release builds.
       let bytes: Uint8Array | null = null;
       if (base64) {
-        bytes = decodeBase64(base64);
+        bytes = base64ToUint8Array(base64);
       } else if (uri) {
         const response = await fetch(uri);
         const ab = await response.arrayBuffer();
@@ -218,15 +205,19 @@ export default function ReportSightingModal({ visible, onClose, onSuccess }: Pro
     const sightingTime = new Date(Date.now() - timeOffset * 60 * 1000).toISOString();
 
     // user_id and created_at are enforced server-side (RLS + sightings_before_insert trigger).
-    const { error } = await supabase.from('sightings').insert({
-      complex_id: selectedComplexId,
-      latitude: complex.latitude,
-      longitude: complex.longitude,
-      photo_url: photoUrl,
-      report_type: reportType,
-      is_anonymous: isAnonymous,
-      created_at: sightingTime,
-    });
+    const { data: inserted, error } = await supabase
+      .from('sightings')
+      .insert({
+        complex_id: selectedComplexId,
+        latitude: complex.latitude,
+        longitude: complex.longitude,
+        photo_url: photoUrl,
+        report_type: reportType,
+        is_anonymous: isAnonymous,
+        created_at: sightingTime,
+      })
+      .select('id')
+      .single();
 
     setSubmitting(false);
 
@@ -242,6 +233,22 @@ export default function ReportSightingModal({ visible, onClose, onSuccess }: Pro
       if (Platform.OS === 'web') alert(`Could not submit report.\n\n${body}`);
       else Alert.alert('Could not submit report', body || 'Please try again.');
     } else {
+      if (inserted?.id) {
+        void supabase.functions
+          .invoke('notify-sighting', {
+            body: {
+              type: 'INSERT',
+              table: 'sightings',
+              schema: 'public',
+              record: { id: inserted.id },
+              old_record: null,
+            },
+          })
+          .then(({ error: invErr }) => {
+            if (invErr) console.warn('[ReportSighting] notify-sighting', invErr.message);
+          })
+          .catch((e) => console.warn('[ReportSighting] notify-sighting', e));
+      }
       if (Platform.OS !== 'web') {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
