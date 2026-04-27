@@ -1,14 +1,20 @@
 // Supabase Edge Function: notify-sighting
-// Triggered via Database Webhook on INSERT into sightings.
-// Requires header x-bootwatch-webhook-secret matching NOTIFY_SIGHTING_WEBHOOK_SECRET (or Bearer same value).
-// Dashboard: Edge Function → disable JWT verification for this function (webhook has no user JWT).
+// Triggered by: (1) Database Webhook on INSERT into sightings, or (2) app calling
+// supabase.functions.invoke('notify-sighting', …) with the reporter's access token.
+// Auth: service role / anon / NOTIFY_SIGHTING_WEBHOOK_SECRET (see getCallerCredential), OR
+//   a valid user JWT for the same user as sighting.user_id (reporter only).
+// Optional table public.notify_sighting_dispatch dedupes webhook + app (run add script in repo).
+// Dashboard: JWT verification can be ON (user invoke) or OFF (webhook-only) — with OFF, both work.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
 
-/** ~1–2 short city blocks; tight enough to stay relevant, loose enough to catch neighbors. */
-const NEARBY_RADIUS_METERS = 450;
+/**
+ * ~2–3 short city blocks. Also see a second pass below: complexes near the *reported* complex
+ * center (not only the reporter GPS pin) so adjacent properties still match when the pin is off.
+ */
+const NEARBY_RADIUS_METERS = 600;
 
 interface WebhookPayload {
   type: "INSERT";
@@ -31,26 +37,38 @@ function timingSafeEqual(a: string, b: string): boolean {
   return diff === 0;
 }
 
-function verifyWebhookSecret(req: Request): Response | null {
-  const secret = Deno.env.get("NOTIFY_SIGHTING_WEBHOOK_SECRET")?.trim();
-  if (!secret || secret.length < 16) {
-    return new Response(
-      JSON.stringify({
-        error: "Server misconfigured: set NOTIFY_SIGHTING_WEBHOOK_SECRET (min 16 chars) on this function",
-      }),
-      { status: 500, headers: { "Content-Type": "application/json" } },
-    );
-  }
-  const header =
-    req.headers.get("x-bootwatch-webhook-secret")?.trim() ??
-    req.headers.get("authorization")?.replace(/^Bearer\s+/i, "")?.trim();
-  if (!header || !timingSafeEqual(header, secret)) {
-    return new Response(JSON.stringify({ error: "Unauthorized" }), {
-      status: 401,
-      headers: { "Content-Type": "application/json" },
-    });
-  }
-  return null;
+/** What the caller sent: custom header, Bearer, or `apikey` (many Supabase clients & webhooks use this). */
+function getCallerCredential(req: Request): string {
+  const a =
+    req.headers.get("x-bootwatch-webhook-secret")?.trim() ||
+    req.headers.get("authorization")?.replace(/^Bearer\s+/i, "")?.trim() ||
+    req.headers.get("apikey")?.trim() ||
+    "";
+  return a;
+}
+
+function verifyStaticCredentials(cred: string): boolean {
+  const notify = Deno.env.get("NOTIFY_SIGHTING_WEBHOOK_SECRET")?.trim() ?? "";
+  const serviceRole = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")?.trim() ?? "";
+  const anon = Deno.env.get("SUPABASE_ANON_KEY")?.trim() ?? "";
+  if (notify.length >= 16 && timingSafeEqual(cred, notify)) return true;
+  if (serviceRole && timingSafeEqual(cred, serviceRole)) return true;
+  if (notify.length > 0 && notify.length < 16 && timingSafeEqual(cred, notify)) return true;
+  if (anon && timingSafeEqual(cred, anon)) return true;
+  return false;
+}
+
+/** Validates a Supabase user access_token (reporter app invoke). */
+async function getUserIdFromAccessToken(jwt: string): Promise<string | null> {
+  const base = Deno.env.get("SUPABASE_URL")?.replace(/\/$/, "") ?? "";
+  const anon = Deno.env.get("SUPABASE_ANON_KEY")?.trim() ?? "";
+  if (!base || !anon) return null;
+  const res = await fetch(`${base}/auth/v1/user`, {
+    headers: { Authorization: `Bearer ${jwt}`, apikey: anon },
+  });
+  if (!res.ok) return null;
+  const j = (await res.json()) as { id?: string };
+  return typeof j.id === "string" ? j.id : null;
 }
 
 function haversineMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -83,11 +101,54 @@ async function tokensForUsers(supabase: any, userIds: string[]): Promise<Map<str
 
 Deno.serve(async (req) => {
   try {
-    const denied = verifyWebhookSecret(req);
-    if (denied) return denied;
+    const cred = getCallerCredential(req);
+    if (!cred) {
+      return new Response(
+        JSON.stringify({
+          error: "Unauthorized",
+          detail:
+            "Add x-bootwatch-webhook-secret, Authorization: Bearer, or apikey (see docs). " +
+            "Or call from the app while signed in (reporter’s access token).",
+        }),
+        { status: 401, headers: { "Content-Type": "application/json" } },
+      );
+    }
 
-    const payload: WebhookPayload = await req.json();
-    const record = payload.record;
+    let reporterUserId: string | null = null;
+    if (!verifyStaticCredentials(cred)) {
+      reporterUserId = await getUserIdFromAccessToken(cred);
+      if (!reporterUserId) {
+        return new Response(
+          JSON.stringify({
+            error: "Unauthorized",
+            detail:
+              "Invalid credential. For webhooks use service role or secret headers. " +
+              "For app, sign in; invoke sends your session access token automatically.",
+          }),
+          { status: 401, headers: { "Content-Type": "application/json" } },
+        );
+      }
+    }
+
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
+      return new Response(JSON.stringify({ error: "Request body is not valid JSON" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    const payload = body as WebhookPayload & { record?: { id: string } };
+    const record = payload?.record;
+    if (!record?.id) {
+      return new Response(
+        JSON.stringify({
+          error: "Invalid webhook payload: expected { record: { id: '...' } } (see Supabase database webhooks docs).",
+        }),
+        { status: 400, headers: { "Content-Type": "application/json" } },
+      );
+    }
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -107,9 +168,38 @@ Deno.serve(async (req) => {
       );
     }
 
+    if (reporterUserId !== null) {
+      if (sighting.user_id !== reporterUserId) {
+        return new Response(
+          JSON.stringify({
+            error: "Forbidden",
+            detail: "User JWT must match the sighting reporter (sighting.user_id).",
+          }),
+          { status: 403, headers: { "Content-Type": "application/json" } },
+        );
+      }
+    }
+
+    // Dedup when both DB webhook and app invoke run (second request no-ops if table exists).
+    const { error: dedupErr } = await supabase.from("notify_sighting_dispatch").insert({
+      sighting_id: sighting.id,
+    });
+    if (dedupErr) {
+      const d = dedupErr.message ?? "";
+      if (dedupErr.code === "23505" || /duplicate|unique/i.test(d)) {
+        return new Response(
+          JSON.stringify({ skipped: true, reason: "already_dispatched" }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (!/relation|does not exist|notify_sighting_dispatch/i.test(d)) {
+        console.warn("[notify-sighting] notify_sighting_dispatch insert:", d);
+      }
+    }
+
     const { data: reportedComplex } = await supabase
       .from("complexes")
-      .select("name, latitude, longitude")
+      .select("id, name, latitude, longitude")
       .eq("id", sighting.complex_id)
       .single();
 
@@ -141,10 +231,25 @@ Deno.serve(async (req) => {
 
     const nearIds = new Set<string>();
     nearIds.add(sighting.complex_id);
+
+    // Vicinity (A): complexes within radius of the reporter’s pin (or complex center fallback).
     for (const c of allComplexes) {
       if (c.latitude == null || c.longitude == null) continue;
       if (haversineMeters(anchorLat, anchorLng, c.latitude, c.longitude) <= NEARBY_RADIUS_METERS) {
         nearIds.add(c.id);
+      }
+    }
+
+    // Vicinity (B): complexes near the *selected* complex’s DB coordinates (neighbors on the map),
+    // so timers at an adjacent complex still match if GPS was dropped far from the center.
+    const rLat = reportedComplex?.latitude;
+    const rLng = reportedComplex?.longitude;
+    if (rLat != null && rLng != null && !Number.isNaN(rLat) && !Number.isNaN(rLng)) {
+      for (const c of allComplexes) {
+        if (c.latitude == null || c.longitude == null) continue;
+        if (haversineMeters(rLat, rLng, c.latitude, c.longitude) <= NEARBY_RADIUS_METERS) {
+          nearIds.add(c.id);
+        }
       }
     }
 
@@ -159,23 +264,40 @@ Deno.serve(async (req) => {
     const followerIds = (followerProfiles ?? []).map((r) => r.id);
     const followerTokens = await tokensForUsers(supabase, followerIds);
 
-    const { data: parkedTimers } = await supabase
+    // Countdown active (expires_at in future) OR over visitor time (over_limit) until they tap
+    // "I've left" in the app (row deleted). Two queries to avoid .or() issues with ISO strings.
+    const nowIso = new Date().toISOString();
+    const { data: parkedWhileCounting, error: errCounting } = await supabase
       .from("active_timers")
       .select("user_id")
       .in("complex_id", nearIdList)
-      .gt("expires_at", new Date().toISOString());
+      .gt("expires_at", nowIso);
+    if (errCounting) {
+      console.error("[notify-sighting] active_timers expires query", errCounting.message);
+    }
+    const { data: parkedOverLimit, error: errOverLimit } = await supabase
+      .from("active_timers")
+      .select("user_id")
+      .in("complex_id", nearIdList)
+      .eq("over_limit", true);
+    if (errOverLimit) {
+      console.error(
+        "[notify-sighting] active_timers over_limit query (add supabase/add_active_timers_over_limit.sql if missing column?)",
+        errOverLimit.message,
+      );
+    }
+    const parkedRows = [
+      ...((parkedWhileCounting ?? []) as { user_id: string }[]),
+      ...((!errOverLimit ? parkedOverLimit : []) ?? []) as { user_id: string }[],
+    ];
+    const parkedTimers = Array.from(
+      new Map(parkedRows.map((r) => [r.user_id, r] as [string, { user_id: string }])).values(),
+    );
 
     const parkedUserIds = [...new Set((parkedTimers ?? []).map((t) => t.user_id))];
-    let parkedTokenMap = new Map<string, string>();
-    if (parkedUserIds.length > 0) {
-      const { data: parkedProfiles } = await supabase
-        .from("profiles")
-        .select("id")
-        .in("id", parkedUserIds)
-        .eq("nearby_sighting_alerts", true);
-      const eligibleParked = (parkedProfiles ?? []).map((p) => p.id);
-      parkedTokenMap = await tokensForUsers(supabase, eligibleParked);
-    }
+    // Parked = explicit “I’m at this complex” (timer). Do not require profile.nearby_sighting_alerts
+    // (users often disable “nearby” but still expect alerts while the timer is running).
+    const parkedTokenMap = await tokensForUsers(supabase, parkedUserIds);
 
     const allRecipients = new Map<string, string>();
     for (const [id, tok] of followerTokens) allRecipients.set(id, tok);
@@ -185,11 +307,21 @@ Deno.serve(async (req) => {
 
     const tokens = [...allRecipients.values()];
 
+    console.log(
+      `[notify-sighting] sighting=${record.id} nearComplexes=${nearIdList.length} ` +
+        `followerCandidates=${followerIds.length} parkedUserIds=${parkedUserIds.length} ` +
+        `recipientTokens=${tokens.length}`,
+    );
+
     if (tokens.length === 0) {
       return new Response(
         JSON.stringify({
           sent: 0,
-          nearbyComplexCount: nearIdList.length,
+          reason: "no push_tokens for matched users, or no active_timers in nearComplexes, or you are the reporter",
+          nearComplexIds: nearIdList,
+          nearComplexCount: nearIdList.length,
+          parkedUserIdsCount: parkedUserIds.length,
+          followerIdsCount: followerIds.length,
           radiusMeters: NEARBY_RADIUS_METERS,
         }),
         { headers: { "Content-Type": "application/json" } },
@@ -202,7 +334,7 @@ Deno.serve(async (req) => {
         ? `Someone got booted near ${complexName}!`
         : `Booter spotted near ${complexName}!`;
 
-    const body =
+    const notificationBody =
       reportType === "booted"
         ? "A community member reported getting booted within a few blocks. Be careful if you're parked nearby."
         : "A boot truck was reported nearby (within a few blocks). Check the feed for details.";
@@ -211,7 +343,7 @@ Deno.serve(async (req) => {
       to: token,
       sound: "default",
       title,
-      body,
+      body: notificationBody,
       data: { screen: "Feed", sightingId: sighting.id },
     }));
 
@@ -220,18 +352,41 @@ Deno.serve(async (req) => {
       headers: {
         "Content-Type": "application/json",
         Accept: "application/json",
+        "Accept-Encoding": "identity",
       },
       body: JSON.stringify(messages),
     });
 
-    const pushResult = await pushResponse.json();
+    const pushResult = (await pushResponse.json()) as {
+      data?: unknown;
+      errors?: unknown;
+    };
+
+    if (!pushResponse.ok) {
+      console.error("[notify-sighting] Expo HTTP error", pushResponse.status, pushResult);
+    }
+    // Expo can return 200 with per-message errors in data[]
+    const tickets = Array.isArray(pushResult.data)
+      ? pushResult.data
+      : pushResult.data
+        ? [pushResult.data]
+        : [];
+    for (const t of tickets) {
+      if (t && typeof t === "object" && (t as { status?: string }).status === "error") {
+        console.error("[notify-sighting] Expo push ticket", JSON.stringify(t));
+      }
+    }
+    if (pushResult.errors) {
+      console.error("[notify-sighting] Expo top-level errors", JSON.stringify(pushResult.errors));
+    }
 
     return new Response(
       JSON.stringify({
         sent: tokens.length,
         nearbyComplexCount: nearIdList.length,
         radiusMeters: NEARBY_RADIUS_METERS,
-        result: pushResult,
+        expoHttpStatus: pushResponse.status,
+        expo: pushResult,
       }),
       { headers: { "Content-Type": "application/json" } },
     );

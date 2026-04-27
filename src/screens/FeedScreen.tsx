@@ -18,6 +18,7 @@ import { useAuth } from '../context/AuthContext';
 import { Sighting } from '../types/sighting';
 import { timeAgo, isWithinHours } from '../utils/time';
 import ReportSightingModal from '../components/ReportSightingModal';
+import PhotoLightbox from '../components/PhotoLightbox';
 import ScreenGradientBackdrop from '../components/ScreenGradientBackdrop';
 import { DEFAULT_AVATAR_COLOR } from '../utils/avatarColors';
 import { fontSize, spacing, borderRadius, shadowCard } from '../theme';
@@ -60,6 +61,10 @@ export default function FeedScreen() {
   const { user } = useAuth();
   const [reportVisible, setReportVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [lightboxUri, setLightboxUri] = useState<string | null>(null);
+
+  const openLightbox = useCallback((uri: string) => setLightboxUri(uri), []);
+  const closeLightbox = useCallback(() => setLightboxUri(null), []);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -100,9 +105,10 @@ export default function FeedScreen() {
         colors={colors}
         isOwn={!!user && item.user_id === user.id}
         onDelete={handleDelete}
+        onPhotoPress={openLightbox}
       />
     ),
-    [styles, colors, user, handleDelete],
+    [styles, colors, user, handleDelete, openLightbox],
   );
 
   if (loading && sightings.length === 0) {
@@ -184,6 +190,7 @@ export default function FeedScreen() {
       </Pressable>
 
       <ReportSightingModal visible={reportVisible} onClose={() => setReportVisible(false)} onSuccess={refresh} />
+      <PhotoLightbox imageUri={lightboxUri} onClose={closeLightbox} />
       </View>
     </ScreenGradientBackdrop>
   );
@@ -195,12 +202,14 @@ const SightingCard = React.memo(function SightingCard({
   colors,
   isOwn,
   onDelete,
+  onPhotoPress,
 }: {
   item: Sighting;
   styles: ReturnType<typeof createStyles>;
   colors: import('../theme').AppColors;
   isOwn: boolean;
   onDelete: (id: string) => void;
+  onPhotoPress: (uri: string) => void;
 }) {
   const isActive = isWithinHours(item.created_at, 0.5);
   const isRecent = !isActive && isWithinHours(item.created_at, 2);
@@ -219,15 +228,11 @@ const SightingCard = React.memo(function SightingCard({
 
   const avatarBg = isBooted ? colors.danger : item.is_anonymous ? colors.neutral : item.avatar_color ?? DEFAULT_AVATAR_COLOR;
 
-  const avatarIcon: React.ComponentProps<typeof Ionicons>['name'] | null = isBooted
-    ? 'lock-closed'
-    : item.is_anonymous
-      ? 'shield-checkmark'
-      : null;
+  const avatarIcon: React.ComponentProps<typeof Ionicons>['name'] | null = item.is_anonymous
+    ? 'shield-checkmark'
+    : null;
 
-  // Only show the profile photo for non-booted, non-anonymous reports. Booted
-  // posts are overridden with the lock icon; anonymous posts use the shield.
-  const showAvatarPhoto = !isBooted && !item.is_anonymous && !!item.avatar_url;
+  const showAvatarPhoto = !item.is_anonymous && !!item.avatar_url;
 
   const tsStyle = isActive ? styles.timestampActive : isRecent ? styles.timestampRecent : undefined;
 
@@ -277,7 +282,16 @@ const SightingCard = React.memo(function SightingCard({
           </Pressable>
         )}
       </View>
-      {item.photo_url && <Image source={{ uri: item.photo_url }} style={styles.photo} />}
+      {item.photo_url && (
+        <Pressable
+          onPress={() => onPhotoPress(item.photo_url!)}
+          style={({ pressed }) => [styles.photoPressable, pressed && styles.photoPressablePressed]}
+          accessibilityLabel="View full-size photo"
+          accessibilityRole="imagebutton"
+        >
+          <Image source={{ uri: item.photo_url }} style={styles.photo} resizeMode="cover" />
+        </Pressable>
+      )}
     </View>
   );
 });
@@ -454,11 +468,17 @@ function createStyles(colors: import('../theme').AppColors) {
     deleteButtonPressed: {
       opacity: 0.6,
     },
+    photoPressable: {
+      marginTop: spacing.sm,
+      borderRadius: borderRadius.md,
+      overflow: 'hidden',
+    },
+    photoPressablePressed: {
+      opacity: 0.88,
+    },
     photo: {
       width: '100%',
       height: 160,
-      borderRadius: borderRadius.md,
-      marginTop: spacing.sm,
     },
     emptyContainer: {
       flexGrow: 1,

@@ -19,6 +19,7 @@ import { supabase } from '../lib/supabase';
 import { complexes } from '../data/complexes';
 import { useSavedComplexes } from '../hooks/useSavedComplexes';
 import { AVATAR_COLORS, DEFAULT_AVATAR_COLOR } from '../utils/avatarColors';
+import { base64ToArrayBuffer } from '../utils/base64ToBytes';
 import { fontSize, spacing, borderRadius, shadowCard, fonts, type AppColors } from '../theme';
 import { useTheme } from '../context/ThemeContext';
 
@@ -254,47 +255,22 @@ export default function ProfileScreen() {
       }
     }
 
-    // Step 1: open the picker without cropping so we can see the mime type
-    // first. The native cropper re-encodes to a static image and would strip
-    // animation from GIFs, so we branch on the detected type below.
-    const probe = await ImagePicker.launchImageLibraryAsync({
+    // Single library session. The old flow opened the picker twice (probe →
+    // crop, or a second pass for GIF bytes). Many users left the flow on the
+    // second screen with no error — it looked like upload failed. On web,
+    // `allowsEditing` is not applied; you still get one pick. GIFs are passed
+    // through the native editor where supported; they may be re-encoded
+    // (e.g. first frame) on some platforms.
+    const picked = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
-      allowsEditing: false,
-      quality: 1,
+      allowsEditing: Platform.OS !== 'web',
+      aspect: [1, 1],
+      quality: 0.85,
+      base64: true,
     });
-    if (probe.canceled || !probe.assets[0]) return;
+    if (picked.canceled || !picked.assets[0]) return;
 
-    let asset = probe.assets[0];
-    const isGif =
-      (asset.mimeType ?? '').toLowerCase() === 'image/gif' ||
-      asset.uri.split('?')[0].toLowerCase().endsWith('.gif');
-
-    // Step 2: for non-GIFs, re-open with the square cropper so users get the
-    // familiar framing step. GIFs skip the cropper and are letter-boxed by
-    // the circular container (`resizeMode: 'cover'`) instead. We also request
-    // base64 from the second pass — see uploadPhoto comment below for why.
-    if (!isGif) {
-      const cropped = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images'],
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.7,
-        base64: true,
-      });
-      if (cropped.canceled || !cropped.assets[0]) return;
-      asset = cropped.assets[0];
-    } else {
-      // GIFs skip the cropper, but we still need bytes — re-pick with base64.
-      const withBytes = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images'],
-        allowsEditing: false,
-        quality: 1,
-        base64: true,
-      });
-      if (withBytes.canceled || !withBytes.assets[0]) return;
-      asset = withBytes.assets[0];
-    }
-
+    const asset = picked.assets[0];
     const uri = asset.uri;
     setPhotoUploading(true);
 
@@ -305,19 +281,22 @@ export default function ProfileScreen() {
       }
       const { path, contentType } = pathInfo;
 
-      // expo-image-picker returns base64 directly when requested. This avoids
-      // the broken `fetch(file://...).arrayBuffer()` path on iOS native, which
-      // silently yields zero bytes for ph:// and some file:// URIs in release
-      // builds. Web falls through to fetch since browsers handle blob URIs.
+      // Prefer base64 from the picker; fall back to fetch (web, or rare native
+      // cases). Avoid global `atob` — use the same safe decoder as sighting
+      // uploads. fetch(localUri) is unreliable on some iOS library URIs.
       let arrayBuffer: ArrayBuffer | null = null;
       if (asset.base64) {
-        const binary = globalThis.atob(asset.base64);
-        const len = binary.length;
-        const buf = new Uint8Array(len);
-        for (let i = 0; i < len; i++) buf[i] = binary.charCodeAt(i);
-        arrayBuffer = buf.buffer;
-      } else {
+        try {
+          arrayBuffer = base64ToArrayBuffer(asset.base64);
+        } catch {
+          arrayBuffer = null;
+        }
+      }
+      if (!arrayBuffer || arrayBuffer.byteLength === 0) {
         const response = await fetch(uri);
+        if (!response.ok) {
+          throw new Error('Could not read the selected image. Please try again.');
+        }
         arrayBuffer = await response.arrayBuffer();
       }
 

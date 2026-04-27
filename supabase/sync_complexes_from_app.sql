@@ -42,7 +42,7 @@ values
   ('the-pines', 'The Pines', 'Rexburg, ID', 43.82309911321681, -111.78802438540978, 120, 'RC Booting', 'unknown', 'moderate', 'Visitor parking up to 2 hours when applicable.'),
   ('aspen-village-apartments', 'Aspen Village Apartments', 'Rexburg, ID', 43.814017475940624, -111.77708880653225, 120, 'Guardian', 'unknown', 'moderate', 'Visitor parking up to 2 hours when applicable.'),
   ('hillcrest-townhouses', 'Hillcrest Townhouses', 'Rexburg, ID', 43.81603774509302, -111.77733384854463, 120, 'Guardian', 'unknown', 'moderate', 'Visitor parking up to 2 hours when applicable.'),
-  ('university-courtyard', 'University Courtyard (North)', 'Rexburg, ID', 43.81674992843553, -111.77737114847511, null, 'RC Booting', 'unknown', 'moderate', 'Surveyed signage: no maximum visitor parking duration is posted.'),
+  ('university-courtyard', 'University Courtyard', 'Rexburg, ID', 43.81674992843553, -111.77737114847511, null, 'RC Booting', 'unknown', 'moderate', 'Surveyed signage: no maximum visitor parking duration is posted.'),
   ('heritage-apartments', 'Heritage Apartments', 'Rexburg, ID', 43.817179541425254, -111.78730370321966, 60, 'RC Booting', 'unknown', 'moderate', '1 hour visitor limit before 5 PM; 2 hours after 5 PM (per posted signage).'),
   ('delta-phi-apartments', 'Delta Phi Apartments', 'Rexburg, ID', 43.81709156361291, -111.78790286150941, 60, 'Guardian', 'unknown', 'moderate', 'Visitor parking up to 1 hour when applicable.'),
   ('arcadia-apartments', 'Arcadia Apartments', 'Rexburg, ID', 43.81806266286514, -111.78792743180331, 60, 'Guardian', 'unknown', 'moderate', 'Visitor parking up to 1 hour when applicable.'),
