@@ -4,8 +4,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
 import { fontSize, spacing, borderRadius, shadowCard, fonts, type AppColors } from '../theme';
 
-/** Opaque / white from icon.png; monochrome tints for transparent look on the slide background. */
-const BOOTWATCH_LOGO = require('../../assets/android-icon-monochrome.png');
+/** Full-color mark with transparent background (same as map watermark). */
+const BOOTWATCH_LOGO = require('../../assets/android-icon-foreground.png');
 
 const { width } = Dimensions.get('window');
 
@@ -107,7 +107,7 @@ export default function OnboardingScreen({ onComplete }: Props) {
         {item.brandIcon ? (
           <Image
             source={BOOTWATCH_LOGO}
-            style={[styles.brandIcon, { tintColor: colors.accent }]}
+            style={styles.brandIcon}
             resizeMode="contain"
             accessibilityLabel="BootWatch"
           />

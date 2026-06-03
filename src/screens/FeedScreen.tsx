@@ -25,7 +25,7 @@ import { fontSize, spacing, borderRadius, shadowCard } from '../theme';
 import { fonts } from '../theme/fonts';
 import { useTheme } from '../context/ThemeContext';
 
-const MASCOT_EMPTY = require('../../assets/timer-on-watch.png');
+const BOOTWATCH_EMPTY = require('../../assets/android-icon-monochrome.png');
 
 function PulseBadge({
   active,
@@ -164,14 +164,12 @@ export default function FeedScreen() {
         }
         ListEmptyComponent={
           <View style={styles.emptyState}>
-            <View style={styles.emptyMascotRing}>
-              <Image
-                source={MASCOT_EMPTY}
-                style={styles.emptyMascot}
-                resizeMode="contain"
-                accessibilityLabel="BootWatch scout mascot"
-              />
-            </View>
+            <Image
+              source={BOOTWATCH_EMPTY}
+              style={[styles.emptyBrandLogo, { tintColor: colors.accent }]}
+              resizeMode="contain"
+              accessibilityLabel="BootWatch"
+            />
             <Text style={styles.emptyTitle}>All quiet</Text>
             <Text style={styles.emptySubtitle}>
               No boot trucks on the radar yet. When you spot one, tap + and the crew will see it live.
@@ -492,20 +490,10 @@ function createStyles(colors: import('../theme').AppColors) {
       gap: spacing.md,
       maxWidth: 320,
     },
-    emptyMascotRing: {
-      width: 140,
-      height: 140,
-      borderRadius: 70,
-      backgroundColor: colors.accentSoft,
-      borderWidth: 2,
-      borderColor: colors.accent,
-      alignItems: 'center',
-      justifyContent: 'center',
+    emptyBrandLogo: {
+      width: 200,
+      height: 200,
       marginBottom: spacing.sm,
-    },
-    emptyMascot: {
-      width: 100,
-      height: 100,
     },
     emptyTitle: {
       fontSize: fontSize.xxl,

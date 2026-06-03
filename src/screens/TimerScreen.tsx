@@ -105,7 +105,7 @@ export default function TimerScreen() {
       return 'Turn on notifications in Settings to get alerts if a boot truck is spotted near you or someone reports a booting nearby.';
     }
     const main =
-      "You'll get a push if someone reports a boot truck in the area, or that they were booted nearby. Reports come from the community, not the building.";
+      "You'll get a notification if someone reports a boot truck in the area, or that they were booted nearby. Reports come from the community, not the building.";
     if (isComplexTimer) {
       return `${main} After visitor time runs out, these alerts keep going until you tap I've left.`;
     }
