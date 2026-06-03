@@ -21,10 +21,21 @@
       "autoIncrement": true,
       "environment": "production",
       "channel": "production"
+    },
+    "beta": {
+      "extends": "production",
+      "channel": "beta"
     }
   },
   "submit": {
     "production": {
+      "ios": {
+        "appleId": "maxhancock64934@gmail.com",
+        "ascAppId": "6763401488",
+        "appleTeamId": "UYHQP34C4S"
+      }
+    },
+    "beta": {
       "ios": {
         "appleId": "maxhancock64934@gmail.com",
         "ascAppId": "6763401488",
