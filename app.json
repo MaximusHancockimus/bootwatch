@@ -13,9 +13,9 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true,
+      "supportsTablet": false,
       "bundleIdentifier": "com.bootwatch.app",
-      "buildNumber": "6",
+      "buildNumber": "8",
       "usesAppleSignIn": true
     },
     "android": {
