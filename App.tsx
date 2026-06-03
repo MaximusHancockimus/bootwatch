@@ -11,6 +11,7 @@ import { ParkingTimerProvider } from './src/context/ParkingTimerContext';
 import { usePushToken } from './src/hooks/usePushToken';
 import TabNavigator from './src/navigation/TabNavigator';
 import AuthScreen from './src/screens/AuthScreen';
+import PasswordRecoveryScreen from './src/screens/PasswordRecoveryScreen';
 import OnboardingScreen from './src/screens/OnboardingScreen';
 import ErrorBoundary from './src/components/ErrorBoundary';
 
@@ -20,7 +21,7 @@ const WEB_DOCUMENT_TITLE =
   Constants.expoConfig?.name ?? Constants.expoConfig?.slug ?? 'BootWatch';
 
 function RootNavigator() {
-  const { user, loading } = useAuth();
+  const { user, loading, needsPasswordRecovery } = useAuth();
   const { colors } = useTheme();
   const [hasOnboarded, setHasOnboarded] = useState<boolean | null>(null);
   usePushToken();
@@ -44,6 +45,10 @@ function RootNavigator() {
 
   if (!hasOnboarded) {
     return <OnboardingScreen onComplete={handleOnboardingComplete} />;
+  }
+
+  if (user && needsPasswordRecovery) {
+    return <PasswordRecoveryScreen />;
   }
 
   return user ? (

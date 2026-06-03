@@ -7,14 +7,17 @@ import { fontSize, spacing, borderRadius, shadowCard, type AppColors, fonts } fr
 
 const BOOTWATCH_MONO = require('../../assets/android-icon-monochrome.png');
 
+type AuthMode = 'signIn' | 'signUp' | 'forgotPassword';
+
 export default function AuthScreen() {
   const { colors } = useTheme();
-  const { signIn, signUp, signInWithGoogle, signInWithApple } = useAuth();
+  const { signIn, signUp, resetPasswordForEmail, signInWithGoogle, signInWithApple } = useAuth();
   const styles = createStyles(colors);
-  const [isSignUp, setIsSignUp] = useState(false);
+  const [authMode, setAuthMode] = useState<AuthMode>('signIn');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
+  const [forgotSent, setForgotSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [oauthLoading, setOauthLoading] = useState<'google' | 'apple' | null>(null);
@@ -25,7 +28,7 @@ export default function AuthScreen() {
       setError('Email and password are required.');
       return;
     }
-    if (isSignUp && !displayName.trim()) {
+    if (authMode === 'signUp' && !displayName.trim()) {
       setError('Display name is required.');
       return;
     }
@@ -35,7 +38,7 @@ export default function AuthScreen() {
     }
 
     setLoading(true);
-    if (isSignUp) {
+    if (authMode === 'signUp') {
       const { error } = await signUp(email.trim(), password, displayName.trim());
       if (error) setError(error);
     } else {
@@ -43,6 +46,19 @@ export default function AuthScreen() {
       if (error) setError(error);
     }
     setLoading(false);
+  }
+
+  async function handleForgotSubmit() {
+    setError(null);
+    if (!email.trim()) {
+      setError('Enter your email address.');
+      return;
+    }
+    setLoading(true);
+    const { error } = await resetPasswordForEmail(email.trim());
+    setLoading(false);
+    if (error) setError(error);
+    else setForgotSent(true);
   }
 
   async function handleGoogle() {
@@ -63,6 +79,9 @@ export default function AuthScreen() {
 
   const anyLoading = loading || oauthLoading !== null;
 
+  /** Hide OAuth only after forgot-password email was sent — show it on forgot screen so Google/Apple users aren’t stranded */
+  const showOAuthSection = !(authMode === 'forgotPassword' && forgotSent);
+
   return (
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={styles.card}>
@@ -72,10 +91,27 @@ export default function AuthScreen() {
           <Text style={styles.titleTm}>™</Text>
         </View>
         <Text style={styles.subtitle}>
-          {isSignUp ? 'Create an account to report sightings' : 'Sign in to your account'}
+          {authMode === 'forgotPassword'
+            ? forgotSent
+              ? 'If an account uses email & password, we sent a reset link.'
+              : 'Get back into your account'
+            : authMode === 'signUp'
+              ? 'Create an account to report sightings'
+              : 'Sign in to your account'}
         </Text>
 
-        {/* OAuth buttons */}
+        {showOAuthSection && (
+          <>
+            {authMode === 'forgotPassword' && !forgotSent && (
+              <View style={[styles.callout, { backgroundColor: colors.infoTint, borderColor: colors.primary }]}>
+                <Ionicons name="information-circle-outline" size={22} color={colors.primary} style={styles.calloutIcon} />
+                <Text style={[styles.calloutText, { color: colors.text }]}>
+                  If you created BootWatch with Google or Apple, sign in with the same provider using the buttons below.
+                  Password reset email only applies to accounts that signed up with email and password.
+                </Text>
+              </View>
+            )}
+
         <Pressable
           style={styles.oauthButton}
           onPress={handleGoogle}
@@ -110,12 +146,16 @@ export default function AuthScreen() {
 
         <View style={styles.divider}>
           <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>or</Text>
+          <Text style={styles.dividerText}>
+            {authMode === 'forgotPassword' && !forgotSent ? 'Email + password accounts' : 'or'}
+          </Text>
           <View style={styles.dividerLine} />
         </View>
+          </>
+        )}
 
         {/* Email/password form */}
-        {isSignUp && (
+        {authMode === 'signUp' && (
           <TextInput
             style={styles.input}
             placeholder="Display name"
@@ -134,8 +174,11 @@ export default function AuthScreen() {
           onChangeText={setEmail}
           keyboardType="email-address"
           autoCapitalize="none"
+          autoCorrect={false}
+          editable={authMode !== 'forgotPassword' || !forgotSent}
         />
 
+        {authMode !== 'forgotPassword' && (
         <TextInput
           style={styles.input}
           placeholder="Password"
@@ -144,6 +187,20 @@ export default function AuthScreen() {
           onChangeText={setPassword}
           secureTextEntry
         />
+        )}
+
+        {authMode === 'signIn' && (
+          <Pressable
+            style={styles.forgotLinkWrap}
+            onPress={() => {
+              setAuthMode('forgotPassword');
+              setError(null);
+              setForgotSent(false);
+            }}
+          >
+            <Text style={styles.forgotLinkText}>Forgot password?</Text>
+          </Pressable>
+        )}
 
         {error && (
           <View style={styles.errorBox}>
@@ -152,19 +209,44 @@ export default function AuthScreen() {
           </View>
         )}
 
-        <Pressable style={styles.primaryButton} onPress={handleSubmit} disabled={anyLoading}>
+        <Pressable
+          style={styles.primaryButton}
+          onPress={authMode === 'forgotPassword' ? handleForgotSubmit : handleSubmit}
+          disabled={anyLoading || (authMode === 'forgotPassword' && forgotSent)}
+        >
           {loading ? (
             <ActivityIndicator color={colors.textInverse} />
           ) : (
-            <Text style={styles.primaryButtonText}>{isSignUp ? 'Create Account' : 'Sign In'}</Text>
+            <Text style={styles.primaryButtonText}>
+              {authMode === 'forgotPassword' ? 'Send reset link' : authMode === 'signUp' ? 'Create Account' : 'Sign In'}
+            </Text>
           )}
         </Pressable>
 
-        <Pressable style={styles.linkButton} onPress={() => { setIsSignUp(!isSignUp); setError(null); }}>
-          <Text style={styles.linkText}>
-            {isSignUp ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
-          </Text>
-        </Pressable>
+        {authMode === 'forgotPassword' ? (
+          <Pressable
+            style={styles.linkButton}
+            onPress={() => {
+              setAuthMode('signIn');
+              setError(null);
+              setForgotSent(false);
+            }}
+          >
+            <Text style={styles.linkText}>Back to sign in</Text>
+          </Pressable>
+        ) : (
+          <Pressable
+            style={styles.linkButton}
+            onPress={() => {
+              setAuthMode((m) => (m === 'signUp' ? 'signIn' : 'signUp'));
+              setError(null);
+            }}
+          >
+            <Text style={styles.linkText}>
+              {authMode === 'signUp' ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
+            </Text>
+          </Pressable>
+        )}
       </View>
     </KeyboardAvoidingView>
   );
@@ -303,6 +385,35 @@ function createStyles(colors: AppColors) {
       color: colors.primary,
       fontSize: fontSize.sm,
       fontFamily: fonts.bodyMedium,
+    },
+    forgotLinkWrap: {
+      alignSelf: 'flex-end',
+      width: '100%',
+      alignItems: 'flex-end',
+      paddingVertical: 2,
+    },
+    forgotLinkText: {
+      fontSize: fontSize.sm,
+      fontFamily: fonts.bodyMedium,
+      color: colors.primary,
+    },
+    callout: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: spacing.sm,
+      width: '100%',
+      padding: spacing.md,
+      borderRadius: borderRadius.lg,
+      borderWidth: 1,
+    },
+    calloutIcon: {
+      marginTop: 1,
+    },
+    calloutText: {
+      flex: 1,
+      fontSize: fontSize.sm,
+      fontFamily: fonts.body,
+      lineHeight: 20,
     },
   });
 }

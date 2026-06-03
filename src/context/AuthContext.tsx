@@ -1,13 +1,20 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
+import * as Linking from 'expo-linking';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import * as WebBrowser from 'expo-web-browser';
 import * as AuthSession from 'expo-auth-session';
 import * as AppleAuthentication from 'expo-apple-authentication';
 
+import { applyPasswordRecoveryDeepLink } from '../utils/authDeepLink';
+
 WebBrowser.maybeCompleteAuthSession();
+
+/** Persist across restarts until password is updated or user signs out */
+const PASSWORD_RECOVERY_PENDING_KEY = '@bootwatch_password_recovery_pending';
 
 // Expo Go doesn't carry your app's Apple Sign-In entitlement, so native
 // Apple auth can terminate the process. Gate it on dev/prod builds only.
@@ -17,8 +24,12 @@ interface AuthState {
   session: Session | null;
   user: User | null;
   loading: boolean;
+  /** Email/password recovery link opened — user must set a new password before the main app */
+  needsPasswordRecovery: boolean;
   signUp: (email: string, password: string, displayName: string) => Promise<{ error: string | null }>;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
+  resetPasswordForEmail: (email: string) => Promise<{ error: string | null }>;
+  completePasswordRecovery: (password: string) => Promise<{ error: string | null }>;
   signInWithGoogle: () => Promise<{ error: string | null }>;
   signInWithApple: () => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
@@ -90,20 +101,94 @@ async function ensureProfile(user: User) {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [needsPasswordRecovery, setNeedsPasswordRecovery] = useState(false);
+
+  async function persistRecoveryPending(on: boolean) {
+    try {
+      if (on) await AsyncStorage.setItem(PASSWORD_RECOVERY_PENDING_KEY, 'true');
+      else await AsyncStorage.removeItem(PASSWORD_RECOVERY_PENDING_KEY);
+    } catch {
+      /* ignore */
+    }
+  }
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      if (session?.user) ensureProfile(session.user);
+    let cancelled = false;
+
+    async function bootstrap() {
+      try {
+        const initialUrl = await Linking.getInitialURL();
+        if (initialUrl && !cancelled) {
+          const res = await applyPasswordRecoveryDeepLink(initialUrl, supabase);
+          if (res.handled && !res.error) {
+            await persistRecoveryPending(true);
+            setNeedsPasswordRecovery(true);
+          } else if (res.error) console.warn('[auth] recovery deep link:', res.error);
+        }
+      } catch (e) {
+        console.warn('[auth] recovery bootstrap:', e);
+      }
+
+      const {
+        data: { session: initialSession },
+      } = await supabase.auth.getSession();
+      if (cancelled) return;
+      setSession(initialSession);
+      if (initialSession?.user) await ensureProfile(initialSession.user);
+
+      try {
+        const pending = await AsyncStorage.getItem(PASSWORD_RECOVERY_PENDING_KEY);
+        if (pending === 'true') setNeedsPasswordRecovery(true);
+      } catch {
+        /* ignore */
+      }
+
       setLoading(false);
+    }
+
+    void bootstrap();
+
+    const linkSub = Linking.addEventListener('url', ({ url }) => {
+      void (async () => {
+        try {
+          const res = await applyPasswordRecoveryDeepLink(url, supabase);
+          if (res.handled && !res.error) {
+            await persistRecoveryPending(true);
+            setNeedsPasswordRecovery(true);
+          } else if (res.error) console.warn('[auth] recovery deep link:', res.error);
+
+          const {
+            data: { session: next },
+          } = await supabase.auth.getSession();
+          setSession(next);
+          if (next?.user) await ensureProfile(next.user);
+        } catch (e) {
+          console.warn('[auth] recovery url handler:', e);
+        }
+      })();
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      if (session?.user) ensureProfile(session.user);
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, nextSession) => {
+      setSession(nextSession);
+      if (nextSession?.user) ensureProfile(nextSession.user);
+
+      if (event === 'PASSWORD_RECOVERY') {
+        await persistRecoveryPending(true);
+        setNeedsPasswordRecovery(true);
+      }
+      if (event === 'SIGNED_OUT') {
+        await persistRecoveryPending(false);
+        setNeedsPasswordRecovery(false);
+      }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      cancelled = true;
+      subscription.unsubscribe();
+      linkSub.remove();
+    };
   }, []);
 
   async function signUp(email: string, password: string, displayName: string) {
@@ -117,6 +202,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function signIn(email: string, password: string) {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
+    return { error: error?.message ?? null };
+  }
+
+  async function resetPasswordForEmail(email: string) {
+    const rawScheme = Constants.expoConfig?.scheme;
+    const scheme =
+      typeof rawScheme === 'string' ? rawScheme : rawScheme?.[0] ?? 'bootwatch';
+
+    const redirectTo = AuthSession.makeRedirectUri({
+      scheme,
+      path: 'reset-password',
+    });
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo,
+    });
+    return { error: error?.message ?? null };
+  }
+
+  async function completePasswordRecovery(password: string) {
+    const { error } = await supabase.auth.updateUser({ password });
+    if (!error) {
+      await persistRecoveryPending(false);
+      setNeedsPasswordRecovery(false);
+    }
     return { error: error?.message ?? null };
   }
 
@@ -215,6 +324,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function signOut() {
+    await persistRecoveryPending(false);
+    setNeedsPasswordRecovery(false);
     await supabase.auth.signOut();
   }
 
@@ -255,8 +366,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       session,
       user: session?.user ?? null,
       loading,
+      needsPasswordRecovery,
       signUp,
       signIn,
+      resetPasswordForEmail,
+      completePasswordRecovery,
       signInWithGoogle,
       signInWithApple,
       signOut,
