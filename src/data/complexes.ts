@@ -1,7 +1,8 @@
 import { Complex } from '../types/complex';
 
-/** Placeholder copy — replace with verified rules when you have real data */
-const PLACEHOLDER_NOTE = "Placeholder visitor limit for testing — replace with verified parking rules.";
+/** Fallback note when signage hasn’t been fully verified for this complex */
+const PLACEHOLDER_NOTE =
+  'Parking rules not fully verified — confirm with posted signage before relying on limits.';
 
 /**
  * Map pin positions: edit `src/data/rexburg-housing.json` only, then run `node scripts/generate-complexes.mjs`.
@@ -254,7 +255,6 @@ export const complexes: Complex[] = [
     riskLevel: 'unknown',
     visitorWeekdayHours: { start: "10:00", end: "22:00" },
     visitorFridayHours: { start: "10:00", end: "00:00" },
-    peakActivityHint: "Most reports were around 3pm and 12am.",
     notes: "Visitor parking up to 2 hours when applicable.",
   },
   {
