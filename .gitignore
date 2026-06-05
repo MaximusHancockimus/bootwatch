@@ -43,3 +43,9 @@ yarn-error.*
 
 # Supabase CLI local state
 supabase/.temp/
+
+# Destructive one-shot scripts that have already been executed against production.
+# The safe, guarded copy lives in supabase/_archive/. If an editor ever recreates
+# the original at the path below (e.g. from a stale buffer), this rule ensures it
+# can never be re-tracked or committed by accident. Never delete this line.
+/supabase/clear_feed_pre_launch.sql
