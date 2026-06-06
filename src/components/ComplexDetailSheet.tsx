@@ -8,7 +8,7 @@ import { useTheme } from '../context/ThemeContext';
 import { formatParkingHoursSummary, formatVisitorLimitMinutes } from '../utils/parkingDisplay';
 import { useComplexSightingPatterns } from '../hooks/useComplexSightingPatterns';
 import {
-  MIN_REPORTS_FOR_PEAK_PATTERN,
+  classifyPeakPatternConfidence,
   formatPeakPatternSentence,
 } from '../utils/sightingPatterns';
 
@@ -53,16 +53,18 @@ export default function ComplexDetailSheet({
 
   if (!complex) return null;
 
+  const confidence = stats ? classifyPeakPatternConfidence(stats.total) : 'none';
   const statsReady =
-    stats != null &&
-    stats.total >= MIN_REPORTS_FOR_PEAK_PATTERN &&
-    stats.topHours.length > 0;
-  const dataPatternLine = statsReady ? formatPeakPatternSentence(stats.topHours) : null;
+    confidence !== 'none' && stats != null && stats.topHours.length > 0;
+  const dataPatternLine =
+    statsReady && stats ? formatPeakPatternSentence(stats.topHours, confidence) : null;
   const hintLine =
     !statsReady && complex.peakActivityHint ? complex.peakActivityHint.trim() : null;
   const patternMainLine = dataPatternLine ?? hintLine;
   const patternSubline = statsReady && stats
-    ? `Based on ${stats.total} reports in the last 90 days (Mountain Time).`
+    ? confidence === 'early'
+      ? `Early signal — based on only ${stats.total} reports so far.`
+      : `Based on ${stats.total} reports in the last 90 days (Mountain Time).`
     : hintLine
       ? 'Community note until more app reports exist.'
       : null;
