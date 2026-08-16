@@ -15,7 +15,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.bootwatch.app",
-      "buildNumber": "9",
+      "buildNumber": "10",
       "usesAppleSignIn": true
     },
     "android": {
